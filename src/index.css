@@ -1,0 +1,273 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 260 80% 8%;
+    /* #0f0529 - Very Deep Midnight Purple */
+    --foreground: 270 20% 95%;
+    /* #f3e8ff - Starlight White */
+
+    --card: 0 0% 100%;
+    /* White (Thoughts/Clouds) */
+    --card-foreground: 270 50% 20%;
+    /* Deep Violet for text inside cards */
+
+    --popover: 260 80% 12%;
+    --popover-foreground: 270 20% 95%;
+
+    --primary: 271 81% 65%;
+    /* #a855f7 - Purple 500 (Glowing) */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 260 50% 15%;
+    /* Darker purple/slate for panels */
+    --secondary-foreground: 270 20% 95%;
+
+    --muted: 260 40% 20%;
+    --muted-foreground: 260 20% 70%;
+    /* Soft Lavender Gray */
+
+    --accent: 320 80% 60%;
+    /* Pink/Magenta Glow */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 260 40% 20%;
+    /* Subtle dark border */
+    --input: 260 40% 20%;
+    --ring: 271 81% 65%;
+
+    --radius: 1.5rem;
+
+    /* ═══════════════════════════════════════════════════════════════
+       COSMIC JOURNEY DESIGN TOKENS
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* Celestial Body Glows */
+    --glow-planet: 271 81% 46%;
+    /* #7c3aed - Violet */
+    --glow-moon: 220 14% 76%;
+    /* #9ca3af - Silver Gray */
+    --glow-gas-giant: 27 96% 61%;
+    /* #fb923c - Orange */
+    --glow-ice-planet: 187 92% 69%;
+    /* #67e8f9 - Cyan */
+    --glow-star: 48 98% 77%;
+    /* #fef08a - Gold Yellow */
+    --glow-galaxy: 280 100% 70%;
+    /* Multi-color handled via gradient */
+
+    /* Voyage Status Colors */
+    --voyage-planning: 220 14% 50%;
+    /* Gray - Dotted trajectory */
+    --voyage-launched: 271 81% 65%;
+    /* Purple - Active */
+    --voyage-cruising: 217 91% 60%;
+    /* #3b82f6 - Blue */
+    --voyage-approaching: 45 93% 58%;
+    /* #fbbf24 - Gold */
+    --voyage-landed: 142 71% 45%;
+    /* #22c55e - Green */
+
+    /* Waypoint Status Colors */
+    --waypoint-locked: 260 20% 40%;
+    --waypoint-available: 217 91% 60%;
+    --waypoint-in-progress: 271 81% 65%;
+    --waypoint-completed: 45 93% 58%;
+    --waypoint-urgent: 0 72% 51%;
+    /* #dc2626 - Red */
+
+    /* The Guide (AI Assistant) */
+    --guide-aurora-start: 271 81% 65%;
+    --guide-aurora-mid: 280 100% 70%;
+    --guide-aurora-end: 320 80% 60%;
+    --guide-message-bg: 271 81% 65% / 0.15;
+    --guide-border: 271 81% 65%;
+
+    /* Achievement & Celebration */
+    --achievement-gold: 45 93% 58%;
+    --achievement-glow: 45 100% 70%;
+    --stardust-primary: 45 93% 77%;
+    --stardust-secondary: 271 81% 77%;
+
+    /* Cosmos Map Layers */
+    --cosmos-deep: 260 80% 4%;
+    --cosmos-nebula: 280 60% 20%;
+    --cosmos-dust: 260 30% 30% / 0.3;
+
+    /* Motion Durations */
+    --motion-drift: 12s;
+    --motion-orbit: 30s;
+    --motion-pulse: 3s;
+    --motion-warp: 400ms;
+    --motion-materialize: 500ms;
+  }
+
+  /* Dark mode override - we might just force light mode for now as per design */
+  .dark {
+    --background: 270 50% 10%;
+    --foreground: 300 20% 98%;
+    /* ... rest can stay or be ignored if we force light */
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  /* Force all links to be white unless overridden by utility classes */
+  a {
+    color: white;
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+/* Custom Utilities for Glassmorphism */
+@layer utilities {
+  .glass {
+    background-color: rgba(255, 255, 255, 0.08);
+    /* Slightly more visible glass */
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .glass-card {
+    background-color: rgba(30, 41, 59, 0.6);
+    /* Lighter slate (slate-800ish) for better contrast */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    background-image: linear-gradient(to right, #818cf8, #ec4899);
+    /* indigo-400 to pink-500 */
+  }
+
+  .text-gradient-success {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    background-image: linear-gradient(to right, #34d399, #06b6d4);
+    /* emerald-400 to cyan-500 */
+  }
+}
+
+/* React Big Calendar Customization */
+.rbc-calendar {
+  font-family: 'Inter', sans-serif;
+}
+
+.rbc-month-view,
+.rbc-time-view,
+.rbc-agenda-view {
+  border: none !important;
+}
+
+.rbc-header {
+  border-bottom: none !important;
+  padding: 12px 0 !important;
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  background: transparent !important;
+}
+
+.rbc-header:hover {
+  color: rgba(255, 255, 255, 1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.rbc-day-bg+.rbc-day-bg {
+  border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.rbc-month-row+.rbc-month-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.rbc-off-range-bg {
+  background: transparent !important;
+  opacity: 0.3;
+}
+
+.rbc-date-cell {
+  padding: 8px !important;
+  font-size: 0.875rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.rbc-today {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+  /* brand-indigo/10 */
+}
+
+.rbc-time-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.rbc-time-view-resources .rbc-time-gutter,
+.rbc-time-view-resources .rbc-time-header-gutter {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid rgba(255, 255, 255, 0.02) !important;
+}
+
+.rbc-current-time-indicator {
+  background-color: #ec4899 !important;
+  /* brand-pink */
+}
+
+.glass-event {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
