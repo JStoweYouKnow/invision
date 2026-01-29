@@ -4,7 +4,7 @@ export const MOCK_USER: UserProfile = {
     uid: 'demo-user',
     displayName: 'Alex Visionary',
     email: 'alex@invision.app',
-    photoURL: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
+    photoURL: 'https://images.unsplash.com/photo-1603415526960-f7e0328c63b1?q=80&w=800&auto=format&fit=crop',
     bio: 'Dreamer, explorer, and coffee enthusiast. I use InVision to map out my future creative projects and travel goals.',
     preferences: {
         emailNotifications: true,
@@ -15,120 +15,288 @@ export const MOCK_USER: UserProfile = {
 
 export const MOCK_GOALS: SavedGoal[] = [
     {
-        id: 'mock-1',
+        id: 'mock-goal-cyber',
         userId: 'demo-user',
-        title: 'Become a Professional Chef',
-        description: 'Master the culinary arts and open my own bistro.',
+        title: 'Cyberprototyping Studio',
+        description: 'Design the first fully holographic living space.',
         createdAt: new Date(),
-        visionImage: 'https://images.unsplash.com/photo-1577106263724-2c8e03bfe9cf?q=80&w=2000&auto=format&fit=crop',
+        visionImage: '/images/demo/cyber-studio.png',
+        category: 'Career',
+        celestialType: 'blackHole',
         plan: {
-            title: 'Become a Professional Chef',
-            description: 'Master the culinary arts',
+            title: 'Cyberprototyping Studio',
+            description: 'Design the first fully holographic living space.',
+            visionaryDescription: 'Design the first fully holographic living space.',
             timeline: [
                 {
-                    date: '2026-01-01',
-                    milestone: 'Culinary Basics',
-                    description: 'Learn knife skills and mother sauces',
-                    steps: [
-                        { text: 'Buy knife set', date: '2025-12-15' },
-                        { text: 'Practice chopping', date: '2025-12-22' },
-                        { text: 'Make bechamel', date: '2026-01-01' }
-                    ],
-                    isCompleted: true,
-                    resources: []
-                },
-                {
-                    date: '2026-03-01',
-                    milestone: 'Advanced Techniques',
-                    description: 'Sous vide and molecular gastronomy',
-                    steps: [
-                        { text: 'Buy sous vide', date: '2026-02-01' },
-                        { text: 'Cook steak', date: '2026-02-15' },
-                        { text: 'Make foam', date: '2026-03-01' }
-                    ],
-                    isCompleted: true,
-                    resources: []
-                },
-                {
                     date: '2026-06-01',
-                    milestone: 'Internship',
-                    description: 'Work in a real kitchen',
+                    milestone: 'Core Holographics',
+                    description: 'Master volumetric projection logic and set up the initial laser grid.',
+                    isCompleted: true,
                     steps: [
-                        { text: 'Apply to restaurants', date: '2026-04-01' },
-                        { text: 'Interview', date: '2026-05-01' },
-                        { text: 'Start working', date: '2026-06-01' }
+                        { text: 'Research volumetric displays', date: '2026-04-01', habit: 'Read optics papers daily' },
+                        { text: 'Purchase laser diodes', date: '2026-04-15' },
+                        { text: 'Build prototype frame', date: '2026-05-20' }
                     ],
-                    isCompleted: false,
                     resources: []
                 },
                 {
                     date: '2027-01-01',
-                    milestone: 'Open Bistro',
-                    description: 'Launch my own place',
-                    steps: [
-                        { text: 'Find location', date: '2026-09-01' },
-                        { text: 'Hire staff', date: '2026-11-01' },
-                        { text: 'Grand opening', date: '2027-01-01' }
-                    ],
+                    milestone: 'Prototype Launch',
+                    description: 'Unveil the "EtherRoom" concept to the design community.',
                     isCompleted: false,
+                    steps: [
+                        { text: 'Finalize software interface', date: '2026-09-01' },
+                        { text: 'Invite beta testers', date: '2026-11-01' },
+                        { text: 'Press release', date: '2026-12-15' }
+                    ],
                     resources: []
                 }
             ],
-            sources: []
+            sources: [
+                { title: 'Volumetric Display Research', url: 'https://example.com/volumetric' },
+                { title: 'Holographic User Interfaces', url: 'https://example.com/hui' }
+            ]
         },
-        authorName: 'Gordon R.',
-        authorPhoto: 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?q=80&w=200&auto=format&fit=crop',
-        category: 'Creative'
+        authorName: 'Alex V.',
+        authorPhoto: 'https://images.unsplash.com/photo-1603415526960-f7e0328c63b1?q=80&w=800&auto=format&fit=crop'
     },
     {
-        id: 'mock-2',
+        id: 'mock-goal-mars',
         userId: 'demo-user',
-        title: 'Learn to Surf',
-        description: 'Catch the big waves in Hawaii.',
+        title: 'Martian Greenhouse',
+        description: 'Establish the first self-sustaining greenhouse on Mars topology.',
         createdAt: new Date(Date.now() - 86400000),
-        visionImage: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?q=80&w=2000&auto=format&fit=crop',
-        category: 'Health',
+        visionImage: '/images/demo/mars-greenhouse.png',
+        category: 'Education',
+        celestialType: 'planet',
         plan: {
-            title: 'Learn to Surf',
-            description: 'Catch the big waves',
+            title: 'Martian Greenhouse',
+            description: 'Establish greenhouse on Mars.',
+            visionaryDescription: 'Establish the first self-sustaining greenhouse on Mars topology.',
             timeline: [
                 {
-                    date: '2026-02-01',
-                    milestone: 'Swimming Skills',
-                    description: 'Build endurance',
-                    steps: [
-                        { text: 'Swim 1km', date: '2026-01-15' },
-                        { text: 'Tread water 10 mins', date: '2026-02-01' }
-                    ],
+                    date: '2026-06-01',
+                    milestone: 'Botany Selection',
+                    description: 'Select potential plant candidates for low-gravity, high-radiation environments.',
                     isCompleted: true,
+                    steps: [
+                        { text: 'Review NASA archived data', date: '2026-02-01' },
+                        { text: 'Select 5 candidate species', date: '2026-04-01' },
+                        { text: 'Begin hydroponic tests', date: '2026-05-15' }
+                    ],
                     resources: []
                 },
                 {
-                    date: '2026-03-01',
-                    milestone: 'Balance Training',
-                    description: 'Core strength',
+                    date: '2026-11-01',
+                    milestone: 'Biosphere Design',
+                    description: 'Architect the geodesic dome structure capable of withstanding dust storms.',
+                    isCompleted: true,
                     steps: [
-                        { text: 'Yoga', date: '2026-02-15' },
-                        { text: 'Balance board', date: '2026-03-01' }
+                        { text: 'Draft CAD blueprints', date: '2026-07-01' },
+                        { text: 'Simulate wind loads', date: '2026-09-15' },
+                        { text: 'Material stress testing', date: '2026-10-20' }
                     ],
-                    isCompleted: false,
                     resources: []
                 },
                 {
-                    date: '2026-04-01',
-                    milestone: 'First Wave',
-                    description: 'Catch a wave standing up',
-                    steps: [
-                        { text: 'Paddle out', date: '2026-03-15' },
-                        { text: 'Pop up', date: '2026-03-25' },
-                        { text: 'Ride', date: '2026-04-01' }
-                    ],
+                    date: '2027-04-01',
+                    milestone: 'Construction Logistics',
+                    description: 'Plan the deployment of automated builder rovers.',
                     isCompleted: false,
+                    steps: [
+                        { text: 'Program rover pathfinding', date: '2027-01-10' },
+                        { text: 'Test assembly sequence', date: '2027-03-01' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2027-09-01',
+                    milestone: 'First Harvest',
+                    description: 'Celebrate the first successful growth cycle of Martian red moss.',
+                    isCompleted: false,
+                    steps: [
+                        { text: 'Monitor growth daily', date: '2027-06-01', habit: 'Log humidity levels' },
+                        { text: 'Harvest samples', date: '2027-09-01' }
+                    ],
                     resources: []
                 }
             ],
-            sources: []
+            sources: [
+                { title: 'NASA Mars Exploration Program', url: 'https://mars.nasa.gov' },
+                { title: 'Botany in Microgravity', url: 'https://example.com/space-botany' }
+            ]
         },
+        authorName: 'Dr. Ares',
+        authorPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop'
+    },
+    {
+        id: 'mock-goal-deepsea',
+        userId: 'demo-user',
+        title: 'Bioluminescent Dive',
+        description: 'Map the bioluminescent communication of deep sea leviathans.',
+        createdAt: new Date(Date.now() - 172800000),
+        visionImage: '/images/demo/biolum-dive.png',
+        category: 'Travel',
+        celestialType: 'icePlanet',
+        plan: {
+            title: 'Bioluminescent Dive',
+            description: 'Map sea leviathans.',
+            visionaryDescription: 'Map the bioluminescent communication of deep sea leviathans.',
+            timeline: [
+                {
+                    date: '2026-05-01',
+                    milestone: 'Deep Sea Certification',
+                    description: 'Obtain necessary pilot certifications for high-pressure submersibles.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Complete PADI Advanced', date: '2026-02-15' },
+                        { text: 'Submersible theory exam', date: '2026-04-20' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2026-09-01',
+                    milestone: 'Expedition Planning',
+                    description: 'Chart the course into the Mariana Trench sectors.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Analyze sonar maps', date: '2026-06-01' },
+                        { text: 'Assemble crew', date: '2026-08-15' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2027-06-01',
+                    milestone: 'The Descent',
+                    description: 'Begin the dive to the abyssal zone.',
+                    isCompleted: false,
+                    steps: [
+                        { text: 'Launch support vessel', date: '2027-05-20' },
+                        { text: 'Begin dive sequence', date: '2027-06-01' }
+                    ],
+                    resources: []
+                }
+            ],
+            sources: [
+                { title: 'NOAA Ocean Exploration', url: 'https://oceanexplorer.noaa.gov' },
+                { title: 'Bioluminescence Database', url: 'https://example.com/biolum' }
+            ]
+        },
+        authorName: 'Marina D.',
+        authorPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=200&auto=format&fit=crop'
+    },
+    {
+        id: 'mock-goal-purity',
+        userId: 'demo-user',
+        title: 'Cloud Temple Retreat',
+        description: 'Build a meditation retreat that floats above the cloudline.',
+        createdAt: new Date(Date.now() - 259200000),
+        visionImage: '/images/demo/cloud-temple.png',
+        category: 'Health',
+        celestialType: 'moon',
+        plan: {
+            title: 'Cloud Temple Retreat',
+            description: 'Build a meditation retreat.',
+            visionaryDescription: 'Build a meditation retreat that floats above the cloudline.',
+            timeline: [
+                {
+                    date: '2026-04-01',
+                    milestone: 'Architectural Concept',
+                    description: 'Design the anti-gravity foundation platforms.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Sketch initial designs', date: '2026-02-01', habit: 'Daily meditation' },
+                        { text: 'Consult with structural engineers', date: '2026-03-15' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2026-08-01',
+                    milestone: 'Location Scouting',
+                    description: 'Find the perfect mountain peak to anchor the floating structures.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Survey Himalayas', date: '2026-06-01' },
+                        { text: 'Secure land rights', date: '2026-07-20' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2027-07-01',
+                    milestone: 'Grand Opening',
+                    description: 'Welcome the first monks and visitors to the sky temple.',
+                    isCompleted: false,
+                    steps: [
+                        { text: 'Final safety inspection', date: '2027-06-01' },
+                        { text: 'Opening ceremony', date: '2027-07-01' }
+                    ],
+                    resources: []
+                }
+            ],
+            sources: [
+                { title: 'Anti-Gravity Architecture', url: 'https://example.com/antigravity-arch' },
+                { title: 'High Altitude Meditation', url: 'https://example.com/cloud-meditation' }
+            ]
+        },
+        authorName: 'Alex V.',
+        authorPhoto: 'https://images.unsplash.com/photo-1603415526960-f7e0328c63b1?q=80&w=800&auto=format&fit=crop'
+    },
+    {
+        id: 'mock-goal-quantum',
+        userId: 'demo-user',
+        title: 'Quantum Symphony',
+        description: 'Compose a visual album based on string theory frequencies.',
+        createdAt: new Date(Date.now() - 345600000),
+        visionImage: '/images/demo/quantum-symphony.png',
+        category: 'Creative',
+        celestialType: 'star',
+        plan: {
+            title: 'Quantum Symphony',
+            description: 'Compose a visual album.',
+            visionaryDescription: 'Compose a visual album based on string theory frequencies.',
+            timeline: [
+                {
+                    date: '2026-07-01',
+                    milestone: 'Theory Study',
+                    description: 'Translate mathematical string vibrations into audible frequencies.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Study Calabi-Yau manifolds', date: '2026-03-01' },
+                        { text: 'Develop translation algorithm', date: '2026-06-15' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2026-12-01',
+                    milestone: 'Composition',
+                    description: 'Write the 4 movements of the symphony.',
+                    isCompleted: true,
+                    steps: [
+                        { text: 'Movement 1: The Singularity', date: '2026-09-01' },
+                        { text: 'Movement 2: Expansion', date: '2026-11-20' }
+                    ],
+                    resources: []
+                },
+                {
+                    date: '2027-10-01',
+                    milestone: 'Cosmic Premiere',
+                    description: 'Live performance with real-time fractal visualization.',
+                    isCompleted: false,
+                    steps: [
+                        { text: 'Book planetarium venue', date: '2027-05-01' },
+                        { text: 'Rehearsals', date: '2027-08-01' }
+                    ],
+                    resources: []
+                }
+            ],
+            sources: [
+                { title: 'String Theory Visualization', url: 'https://example.com/string-theory' },
+                { title: 'Fractal Music Generation', url: 'https://example.com/fractal-audio' }
+            ]
+        },
+        authorName: 'Maestro X',
+        authorPhoto: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=200&auto=format&fit=crop'
     }
 ];
 

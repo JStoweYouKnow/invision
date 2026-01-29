@@ -51,8 +51,8 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
     // Accept any valid http(s) URL or data URI - only treat as placeholder if empty/invalid
     const isPlaceholder = (url?: string) => {
         if (!url || url.trim() === '') return true;
-        // Accept pollinations, data URIs, and any other valid http(s) URLs
-        return !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:image/');
+        // Accept local paths, pollinations, data URIs, and any other valid http(s) URLs
+        return !url.startsWith('/') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:image/');
     };
 
     // Determine which image to show

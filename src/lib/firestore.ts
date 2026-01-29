@@ -78,7 +78,8 @@ function sanitizeData(data: any): any {
 const mockStore = {
     messages: {} as Record<string, Message[]>,
     conversations: [] as Conversation[],
-    listeners: {} as Record<string, Set<(data: any) => void>>
+    listeners: {} as Record<string, Set<(data: any) => void>>,
+    journalEntries: [] as JournalEntry[]
 };
 
 // Initialize mock conversations with Sarah and David if empty
@@ -676,6 +677,23 @@ export const firestoreService = {
     // --- Journal Entries ---
 
     async saveJournalEntry(entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+        // Mock / In-Memory Handler
+        if (entry.goalId.startsWith('mock-') || entry.goalId.startsWith('goal_sarah') || entry.goalId.startsWith('goal_david')) {
+            const newId = `mock-entry-${Date.now()}`;
+            const newEntry: JournalEntry = {
+                ...entry,
+                id: newId,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+
+            // Initialize store if needed (though we init above)
+            if (!mockStore.journalEntries) mockStore.journalEntries = [];
+            mockStore.journalEntries.push(newEntry);
+
+            return newId;
+        }
+
         try {
             const docRef = await addDoc(collection(db, 'journal_entries'), {
                 ...entry,
@@ -690,6 +708,13 @@ export const firestoreService = {
     },
 
     async getJournalEntries(goalId: string): Promise<JournalEntry[]> {
+        // Mock Handler
+        if (goalId.startsWith('mock-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            return (mockStore.journalEntries || [])
+                .filter(e => e.goalId === goalId)
+                .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        }
+
         try {
             const q = query(
                 collection(db, 'journal_entries'),
@@ -710,6 +735,13 @@ export const firestoreService = {
     },
 
     async getJournalEntriesForMilestone(goalId: string, milestoneIndex: number): Promise<JournalEntry[]> {
+        // Mock Handler
+        if (goalId.startsWith('mock-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            return (mockStore.journalEntries || [])
+                .filter(e => e.goalId === goalId && e.milestoneIndex === milestoneIndex)
+                .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        }
+
         try {
             const q = query(
                 collection(db, 'journal_entries'),
@@ -731,6 +763,19 @@ export const firestoreService = {
     },
 
     async updateJournalEntry(entryId: string, updates: Partial<JournalEntry>): Promise<void> {
+        // Mock Handler
+        if (entryId.startsWith('mock-entry-') || entryId.startsWith('journal-')) {
+            const index = mockStore.journalEntries?.findIndex(e => e.id === entryId);
+            if (index !== undefined && index !== -1 && mockStore.journalEntries) {
+                mockStore.journalEntries[index] = {
+                    ...mockStore.journalEntries[index],
+                    ...updates,
+                    updatedAt: new Date()
+                };
+            }
+            return;
+        }
+
         try {
             const docRef = doc(db, 'journal_entries', entryId);
             await updateDoc(docRef, {
@@ -744,6 +789,14 @@ export const firestoreService = {
     },
 
     async deleteJournalEntry(entryId: string): Promise<void> {
+        // Mock Handler
+        if (entryId.startsWith('mock-entry-') || entryId.startsWith('journal-')) {
+            if (mockStore.journalEntries) {
+                mockStore.journalEntries = mockStore.journalEntries.filter(e => e.id !== entryId);
+            }
+            return;
+        }
+
         try {
             await deleteDoc(doc(db, 'journal_entries', entryId));
         } catch (error) {

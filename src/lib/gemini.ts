@@ -331,13 +331,10 @@ export const geminiService = {
                 console.error('[ImageGen] ❌ imagen-3.0-generate-002 EXCEPTION:', e);
             }
 
-            // Fallback 2: Pollinations direct URL (skip fetch to avoid CORS)
-            console.log('[ImageGen] Step 3: Using Pollinations direct URL...');
-            const safePromptCore = promptCore.slice(0, 400);
-            const imagePrompt = `cinematic shot of ${safePromptCore}, photorealistic, natural lighting, inspirational, highly detailed`;
-            const seed = Math.floor(Math.random() * 1000000);
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${seed}`;
+
+
+            // If we get here, both failed
+            throw new Error("All image generation strategies failed");
         }
     },
 
