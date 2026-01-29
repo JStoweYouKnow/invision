@@ -26,6 +26,53 @@ interface ImageInlineData {
     };
 }
 
+// Compress a base64 data URI to reduce file size using canvas
+async function compressImage(dataUri: string, maxSizeBytes: number = 800000, quality: number = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+
+            // Calculate scaled dimensions to reduce size
+            let { width, height } = img;
+            const maxDimension = 1280; // Max width/height
+
+            if (width > maxDimension || height > maxDimension) {
+                const ratio = Math.min(maxDimension / width, maxDimension / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error('Failed to get canvas context'));
+                return;
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Try different quality levels until we're under the size limit
+            let currentQuality = quality;
+            let result = canvas.toDataURL('image/jpeg', currentQuality);
+
+            while (result.length > maxSizeBytes && currentQuality > 0.3) {
+                currentQuality -= 0.1;
+                result = canvas.toDataURL('image/jpeg', currentQuality);
+                console.log(`[ImageGen] Compressing: quality=${currentQuality.toFixed(1)}, size=${result.length}`);
+            }
+
+            console.log(`[ImageGen] Final compressed size: ${result.length} bytes`);
+            resolve(result);
+        };
+        img.onerror = () => reject(new Error('Failed to load image for compression'));
+        img.src = dataUri;
+    });
+}
+
+
 export interface GeneratedPlan {
     title: string;
     description: string;
@@ -130,7 +177,10 @@ export const geminiService = {
       4. CRITICAL: 
          - The VERY FIRST step of the entire plan MUST have a date within 2-3 days of the current date (${new Date().toISOString().split('T')[0]}) to establish immediate momentum.
          - All subsequent step dates must be chronologically ordered and must be BEFORE or ON the milestone date.
-      5. Include 1-2 "resources" where applicable (real URLs or very specific tool names).
+      5. Include 1-2 "resources" where applicable. IMPORTANT rules for URLs:
+         - Use ONLY high-confidence, stable URLs (e.g., main domain pages like 'coursera.org', 'udemy.com', 'wikipedia.org').
+         - DO NOT provide deep links to specific articles or course pages unless you are 100% certain they exist and are permanent.
+         - If uncertain, provide a Google Search URL query instead (e.g., 'https://www.google.com/search?q=topic').
 
       Return ONLY a JSON object with this structure:
       {
@@ -184,10 +234,14 @@ export const geminiService = {
     async generateVisionImage(goal: string, description?: string): Promise<string> {
         // Construct a rich prompt for image generation
         const promptCore = description ? description.slice(0, 200) : goal;
-        const fullPrompt = `Generate a cinematic, inspirational image representing: ${promptCore}. Style: futuristic, highly detailed, 8k quality, concept art, masterpiece, wide aspect ratio`;
+        const fullPrompt = `Generate a cinematic, inspirational image representing: ${promptCore}. Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect ratio`;
+
+        console.log('[ImageGen] Starting image generation...');
+        console.log('[ImageGen] Prompt:', fullPrompt.slice(0, 100) + '...');
 
         try {
             // Use Gemini's native image generation model
+            console.log('[ImageGen] Step 1: Trying gemini-3-pro-image-preview...');
             const imageModel = genAI.getGenerativeModel({
                 model: "gemini-3-pro-image-preview",
                 generationConfig: {
@@ -204,77 +258,84 @@ export const geminiService = {
                 for (const part of parts) {
                     const imagePart = part as ImageInlineData;
                     if (imagePart.inlineData) {
-                        return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                        let dataUri = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                        console.log('[ImageGen] ✅ gemini-3-pro-image-preview SUCCESS. Data URI length:', dataUri.length);
+
+                        // Compress if too large for Firestore
+                        if (dataUri.length > 900000) {
+                            console.log('[ImageGen] ⚠️ Image too large, compressing...');
+                            try {
+                                dataUri = await compressImage(dataUri, 800000, 0.75);
+                                console.log('[ImageGen] ✅ Compression successful. New size:', dataUri.length);
+                            } catch (compressError) {
+                                console.error('[ImageGen] ❌ Compression failed:', compressError);
+                                throw new Error("Image compression failed");
+                            }
+                        }
+                        return dataUri;
                     }
                 }
             }
 
+            console.warn('[ImageGen] ❌ gemini-3-pro-image-preview returned no image data');
             throw new Error("No image data in Gemini response");
 
-        } catch {
-            // Gemini image generation failed, try Imagen 3.0
+        } catch (geminiError) {
+            // Gemini image generation failed or too large, try Imagen 3
+            console.error('[ImageGen] ❌ gemini-3-pro-image-preview FAILED:', geminiError);
 
-            // Fallback 1: Try Imagen 3.0 API with 10s timeout
+            // Fallback 1: Try Imagen 3 via generateImages endpoint
             try {
+                console.log('[ImageGen] Step 2: Trying imagen-3.0-generate-002 via generateImages...');
                 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${apiKey}`;
 
                 const response = await fetchWithTimeout(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        instances: [{ prompt: fullPrompt }],
-                        parameters: {
-                            sampleCount: 1,
+                        prompt: fullPrompt,
+                        config: {
+                            numberOfImages: 1,
                             aspectRatio: "16:9",
-                            sampleImageSize: "1024"
+                            outputOptions: {
+                                mimeType: "image/jpeg"
+                            }
                         }
                     })
-                }, 10000);
+                }, 15000);
+
+                console.log('[ImageGen] imagen-3.0-generate-002 response status:', response.status);
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.predictions?.[0]?.bytesBase64Encoded) {
-                        const mimeType = data.predictions[0].mimeType || 'image/png';
-                        return `data:${mimeType};base64,${data.predictions[0].bytesBase64Encoded}`;
+                    // Check for generatedImages array in response
+                    const imageData = data.generatedImages?.[0]?.image?.imageBytes ||
+                        data.predictions?.[0]?.bytesBase64Encoded;
+                    if (imageData) {
+                        const mimeType = data.generatedImages?.[0]?.image?.mimeType || 'image/jpeg';
+                        const dataUri = `data:${mimeType};base64,${imageData}`;
+                        console.log('[ImageGen] ✅ imagen-3.0-generate-002 SUCCESS. Data URI length:', dataUri.length);
+                        if (dataUri.length < 900000) {
+                            return dataUri;
+                        }
+                        console.warn('[ImageGen] ⚠️ Imagen image too large, falling back...');
+                    } else {
+                        console.warn('[ImageGen] ❌ imagen-3.0-generate-002 response structure:', JSON.stringify(data).slice(0, 300));
                     }
+                } else {
+                    const errorText = await response.text();
+                    console.error('[ImageGen] ❌ imagen-3.0-generate-002 HTTP error:', response.status, errorText.slice(0, 300));
                 }
-            } catch {
-                // Imagen 3.0 failed, continue to next fallback
+            } catch (e) {
+                console.error('[ImageGen] ❌ imagen-3.0-generate-002 EXCEPTION:', e);
             }
 
-            // Fallback 2: Pollinations with 15s timeout
-            const pollinationsApiKey = import.meta.env.VITE_POLLINATIONS_API_KEY;
-            const imagePrompt = `cinematic shot of ${promptCore}, futuristic, inspirational, highly detailed, 8k`;
+            // Fallback 2: Pollinations direct URL (skip fetch to avoid CORS)
+            console.log('[ImageGen] Step 3: Using Pollinations direct URL...');
+            const safePromptCore = promptCore.slice(0, 400);
+            const imagePrompt = `cinematic shot of ${safePromptCore}, photorealistic, natural lighting, inspirational, highly detailed`;
             const seed = Math.floor(Math.random() * 1000000);
-
-            try {
-                // Use Pollinations API with authentication and timeout
-                const pollinationsResponse = await fetchWithTimeout(
-                    'https://image.pollinations.ai/prompt/' + encodeURIComponent(imagePrompt),
-                    {
-                        method: 'GET',
-                        headers: pollinationsApiKey ? {
-                            'Authorization': `Bearer ${pollinationsApiKey}`
-                        } : {}
-                    },
-                    15000
-                );
-
-                if (pollinationsResponse.ok) {
-                    // Convert blob to base64 data URI for consistent handling
-                    const blob = await pollinationsResponse.blob();
-                    return new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.readAsDataURL(blob);
-                    });
-                }
-            } catch {
-                // Pollinations API failed, use direct URL fallback
-            }
-
-            // Final fallback: direct URL (works without fetch)
             const encodedPrompt = encodeURIComponent(imagePrompt);
             return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${seed}`;
         }
@@ -358,6 +419,77 @@ export const geminiService = {
             return JSON.parse(jsonString);
         } catch {
             throw new Error("AI theme generation failed");
+        }
+    },
+
+    // --- Journal AI Functions ---
+
+    async generateJournalPrompt(
+        goalTitle: string,
+        milestoneName: string,
+        previousEntries: string[] = []
+    ): Promise<string> {
+        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+        const prompt = `
+You are a supportive life coach helping someone reflect on their journey toward: "${goalTitle}"
+
+They are currently working on the milestone: "${milestoneName}"
+
+${previousEntries.length > 0 ? `Their recent journal entries:\n${previousEntries.slice(0, 3).join('\n---\n')}` : ''}
+
+Generate ONE thoughtful, specific journal prompt question that:
+1. Encourages deep self-reflection
+2. Connects to their specific goal and milestone
+3. Is warm and encouraging in tone
+4. Helps them recognize progress or identify obstacles
+
+Return ONLY the question, no quotes or extra formatting. Keep it under 30 words.
+        `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            return result.response.text().trim();
+        } catch {
+            // Fallback prompt if AI fails
+            return "What progress have you made today? How are you feeling about your journey?";
+        }
+    },
+
+    async generateJournalReflection(
+        goalTitle: string,
+        milestoneName: string,
+        journalEntry: string,
+        mood: string
+    ): Promise<string> {
+        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+        const moodGuidance = mood === 'struggling' || mood === 'frustrated'
+            ? 'Provide gentle reassurance and perspective. Acknowledge the difficulty while highlighting their resilience.'
+            : 'Celebrate their progress and momentum. Reinforce positive patterns you notice.';
+
+        const prompt = `
+You are a warm, encouraging life coach. Someone pursuing "${goalTitle}" just wrote this journal entry about "${milestoneName}":
+
+"${journalEntry}"
+
+Their current mood: ${mood}
+
+Write a brief (2-3 sentences) supportive response that:
+1. Acknowledges their feelings and effort genuinely
+2. Offers one specific insight or encouragement based on what they wrote
+3. ${moodGuidance}
+
+Be genuine and specific to what they wrote. Avoid generic platitudes like "keep going" or "you've got this".
+Reference specific things they mentioned. Keep it under 60 words.
+        `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            return result.response.text().trim();
+        } catch {
+            // Fallback reflection if AI fails
+            return "Thank you for sharing your thoughts. Taking time to reflect on your journey shows real commitment to your growth. Keep moving forward at your own pace.";
         }
     }
 };

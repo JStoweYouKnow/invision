@@ -7,7 +7,9 @@ import { PlanViewer } from '@/components/PlanViewer';
 import { ThemeBackground } from '@/components/backgrounds';
 import { HomeButton } from '@/components/HomeButton';
 import { NavigationMenu } from '@/components/NavigationMenu';
-
+import { useNavigate } from 'react-router-dom';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { ThemeQuickToggle } from '@/components/ThemeQuickToggle';
 export const PlanDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [goal, setGoal] = useState<SavedGoal | null>(null);
@@ -66,6 +68,20 @@ export const PlanDetailsPage: React.FC = () => {
         }
     };
 
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const navigate = useNavigate();
+
+    const handleDelete = async () => {
+        if (!goal || !goal.id) return;
+        try {
+            await firestoreService.deleteGoal(goal.id);
+            navigate('/dashboard');
+        } catch (error) {
+            console.error("Failed to delete goal:", error);
+            // Optionally show error toast
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
@@ -94,7 +110,10 @@ export const PlanDetailsPage: React.FC = () => {
             </div>
 
             <div className="absolute top-6 left-6 z-50 flex flex-col gap-4">
-                <HomeButton />
+                <div className="flex items-center gap-14">
+                    <HomeButton />
+                    <ThemeQuickToggle />
+                </div>
 
                 <Link
                     to="/dashboard"
@@ -112,8 +131,21 @@ export const PlanDetailsPage: React.FC = () => {
                     onTogglePublic={handleTogglePublic}
                     standalone={false}
                     onUpdatePlan={handlePlanUpdate}
+                    goalId={goal.id}
+                    onDelete={() => setShowDeleteConfirm(true)}
                 />
             </div>
+
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleDelete}
+                title="Delete Vision?"
+                message="Are you sure you want to delete this vision? This action cannot be undone and you will lose all progress, journal entries, and milestones associated with this goal."
+                confirmText="Delete Vision"
+                cancelText="Keep Vision"
+                isDestructive={true}
+            />
         </div>
     );
 };

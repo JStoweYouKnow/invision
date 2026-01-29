@@ -37,7 +37,7 @@ export const ThemeQuickToggle: React.FC = () => {
                 whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                 whileTap={{ scale: 0.95 }}
                 className="px-3 py-2 rounded-full transition-all flex items-center gap-2 bg-transparent hover:bg-white/5"
-                title="Change theme"
+                title={`Change theme (Current: ${currentTheme.name})`}
             >
                 <div style={{ color: currentTheme.colors.primary }}>
                     {themeIcons[currentTheme.id] || <Palette className="w-4 h-4" />}
@@ -73,6 +73,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                     }}
                                     className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors ${isSelected ? 'bg-brand-purple/20' : ''
                                         }`}
+                                    title={`Switch to ${theme.name} theme`}
                                 >
                                     <div
                                         className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -110,6 +111,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                             }}
                                             className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors ${isSelected ? 'bg-brand-purple/20' : ''
                                                 }`}
+                                            title={`Switch to ${theme.name} theme`}
                                         >
                                             <div
                                                 className="w-8 h-8 rounded-lg flex items-center justify-center bg-cover bg-center"

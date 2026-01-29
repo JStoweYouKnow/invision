@@ -251,6 +251,7 @@ export const SolarSystemHome: React.FC<SolarSystemHomeProps> = ({ goals }) => {
                                     background: `${colors.background}f2`,
                                     border: `1px solid ${colors.accent}4d`,
                                     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+                                    color: '#ffffff',
                                 }}
                             >
                                 <div className="font-semibold">{goal.title}</div>

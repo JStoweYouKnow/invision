@@ -12,8 +12,11 @@ export const calendarService = {
     async getAccessToken(): Promise<string> {
         try {
             // Force prompt to ensure we get a fresh token with the correct scopes, 
-            // or check if the current user already has one (harder with just Firebase SDK).
-            // For simplicity in this flow, we'll trigger a popup if we need the token to sync.
+            // and to prevent the popup from flashing/closing immediately if already signed in.
+            googleProvider.setCustomParameters({
+                prompt: 'select_account consent'
+            });
+
             const result = await signInWithPopup(auth, googleProvider);
             const credential = GoogleAuthProvider.credentialFromResult(result);
             const token = credential?.accessToken;

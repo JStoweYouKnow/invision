@@ -135,9 +135,23 @@ export const MissionControl: React.FC<MissionControlProps> = ({
                 <h1 className="text-3xl md:text-4xl font-outfit font-bold text-white mb-1">
                     {getGreeting()}, {userName}
                 </h1>
-                <p className="text-white/60">
-                    Your cosmic journey awaits. Here's your mission status.
-                </p>
+                <div className="flex items-center gap-3">
+                    <p className="text-white/60">
+                        Your cosmic journey awaits. Here's your mission status.
+                    </p>
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Create dummy users (Sarah & David) for testing?')) {
+                                const { seedDummyData } = await import('@/lib/seeder');
+                                const result = await seedDummyData();
+                                alert(result.message);
+                            }
+                        }}
+                        className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded shadow-lg hover:shadow-purple-500/25 transition-all"
+                    >
+                        Seed Data
+                    </button>
+                </div>
             </motion.div>
 
             {/* Stats Cards */}

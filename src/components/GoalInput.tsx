@@ -108,6 +108,9 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                 onBlur={() => setIsFocused(false)}
                                 autoFocus
                                 placeholder="Describe your dream..."
+                                style={{
+                                    color: ['brain', 'tree'].includes(currentTheme.id) ? '#ffffff' : undefined
+                                }}
                                 className={`w-full bg-transparent border-none text-base md:text-lg font-display font-bold ${['brain', 'tree'].includes(currentTheme.id)
                                     ? 'text-white placeholder:text-white/60 caret-white selection:bg-white/20'
                                     : 'text-slate-800 placeholder:text-slate-500 caret-purple-600 selection:bg-purple-200'
@@ -228,24 +231,28 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                 {onWormhole && (
                                     <button
                                         type="button"
-                                        onClick={onWormhole}
+                                        onClick={(e) => e.preventDefault()} // Disable default click
+                                        onMouseDown={(e) => {
+                                            e.preventDefault(); // Prevent focus loss
+                                            onWormhole?.(); // Trigger immediately
+                                        }}
                                         disabled={isLoading}
                                         className="flex items-center justify-center gap-2 px-5 h-10 rounded-full transition-all duration-300 shadow-md hover:scale-105 hover:rotate-2 disabled:opacity-40 backdrop-blur-sm"
                                         style={{
-                                            backgroundColor: 'rgba(0, 0, 0, 0.6)', // Reduced transparency (was 0.2)
-                                            color: currentTheme.colors.primary, // Theme text color
-                                            border: `1px solid ${currentTheme.colors.primary}66`, // Theme border
-                                            boxShadow: `0 0 10px ${currentTheme.colors.primary}20`, // Theme glow
+                                            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                            color: currentTheme.colors.primary,
+                                            border: `1px solid ${currentTheme.colors.primary}66`,
+                                            boxShadow: `0 0 10px ${currentTheme.colors.primary}20`,
                                             height: '40px'
                                         }}
-                                        title="Enter Wormhole (Random Vision)"
+                                        title="Surprise Me"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M12 20a8 8 0 1 0-8-8" />
                                             <path d="M10 14a3 3 0 1 0 3-3" />
                                             <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662" />
                                         </svg>
-                                        <span className="text-sm font-semibold whitespace-nowrap">Surprise Me</span>
+                                        <span className="text-sm font-semibold whitespace-nowrap">Wormhole</span>
                                     </button>
                                 )}
                             </div>

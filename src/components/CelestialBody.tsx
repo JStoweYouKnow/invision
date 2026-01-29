@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export type CelestialType = 'planet' | 'moon' | 'gasGiant' | 'icePlanet' | 'star' | 'blackHole';
+export type CelestialType = 'planet' | 'moon' | 'icePlanet' | 'star' | 'blackHole';
 
 interface CelestialBodyProps {
     size: number;
@@ -25,12 +25,7 @@ const CELESTIAL_CONFIG: Record<CelestialType, { image: string; glow: string; rot
         rotationDuration: 10,
         animationType: 'wobble',
     },
-    gasGiant: {
-        image: '/images/celestial/gas-giant.png',
-        glow: 'rgba(251, 146, 60, 0.5)',
-        rotationDuration: 6,
-        animationType: 'wobble',
-    },
+
     icePlanet: {
         image: '/images/celestial/ice-planet.png',
         glow: 'rgba(103, 232, 249, 0.6)',
@@ -52,7 +47,7 @@ const CELESTIAL_CONFIG: Record<CelestialType, { image: string; glow: string; rot
 };
 
 const getCelestialType = (index: number): CelestialType => {
-    const types: CelestialType[] = ['planet', 'moon', 'gasGiant', 'icePlanet', 'star'];
+    const types: CelestialType[] = ['planet', 'moon', 'icePlanet', 'star'];
     return types[index % types.length];
 };
 
@@ -66,14 +61,18 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
     // Randomize starting phase offset based on index
     const phaseOffset = (index * 1.5); // Offset animation timing for variety
 
+    // Generate a consistent hue rotation based on the index to ensure every body looks distinct
+    // We use a large prime multiplier to scatter the colors around the spectrum
+    const hueRotate = (index * 137) % 360;
+
     const animations = {
         wobble: {
             rotateY: [-wobbleAmount, wobbleAmount, -wobbleAmount],
-            scale: [1.1, 1.1, 1.1], // Slight scale up to prevent gaps during rotation
+            scale: [1.2, 1.2, 1.2], // Scaled up to prevent gaps during rotation
         },
         spin: {
             rotate: [0, 360],
-            scale: [1.1, 1.1, 1.1], // Consistent scale with wobble
+            scale: [1.2, 1.2, 1.2], // Consistent scale with wobble
         }
     };
 
@@ -85,6 +84,7 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
                 height: size,
                 perspective: '600px',
                 perspectiveOrigin: 'center',
+                filter: `hue-rotate(${hueRotate}deg)`,
             }}
         >
             {/* Outer glow effect */}
@@ -92,7 +92,7 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
                 className="absolute inset-0 rounded-full blur-md pointer-events-none"
                 style={{
                     background: `radial-gradient(circle, ${config.glow} 0%, transparent 70%)`,
-                    transform: 'scale(1.3)',
+                    transform: 'scale(1)', // Reverted scale since ringed planet is removed
                 }}
             />
 
@@ -118,7 +118,7 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
                     src={config.image}
                     alt={type}
                     className="w-full h-full object-cover"
-                    style={{ transform: 'scale(1.05)' }} // Extra safety scale for the image itself
+                    style={{ transform: 'scale(1.15)' }} // Extra safety scale for the image itself
                 />
 
                 {/* Subtle lighting overlay to enhance 3D effect */}

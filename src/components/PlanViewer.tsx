@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar as CalendarIcon, ExternalLink, LayoutList, Trophy, Sparkles, Share2, Globe, Lock } from 'lucide-react';
+import { Calendar as CalendarIcon, ExternalLink, LayoutList, Trophy, Sparkles, Share2, Globe, Lock, Trash2 } from 'lucide-react';
 import type { GeneratedPlan } from '@/lib/gemini';
 import { TheGuide } from '@/components/TheGuide';
 import { CalendarView } from '@/components/CalendarView';
@@ -26,6 +26,8 @@ interface PlanViewerProps {
     onGoHome?: () => void;
     standalone?: boolean; // New prop to control layout mode
     onUpdatePlan?: (newPlan: GeneratedPlan) => void;
+    goalId?: string;
+    onDelete?: () => void;
 }
 
 // const QUOTES = [
@@ -36,11 +38,14 @@ interface PlanViewerProps {
 //     { text: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar" }
 // ];
 
-export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoHome, isPublic, onTogglePublic, standalone = true, onUpdatePlan }) => {
+import { calendarService } from '@/lib/calendar';
+
+export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoHome, isPublic, onTogglePublic, standalone = true, onUpdatePlan, goalId, onDelete }) => {
 
     // const { user } = useAuth();
     const [imgSeed, setImgSeed] = useState(0);
     const [viewMode, setViewMode] = useState<'timeline' | 'calendar' | 'vision'>('vision'); // Debug: default to vision
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Check if the provided image is a valid image URL
     // Accept any valid http(s) URL or data URI - only treat as placeholder if empty/invalid
@@ -63,7 +68,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
         if (seed > 0 && !isPollinations) {
             // User wants remix, but we have a non-pollinations static image.
             // Generate a fresh one using the seed.
-            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, futuristic, inspirational, highly detailed, 8k, wide angle`);
+            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k, wide angle`);
             return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
         }
 
@@ -72,7 +77,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
             // Fallback to fresh generation if it was a placeholder
             // Use a stable seed based on the title length if seed is 0 to ensure consistent but dynamic initial image
             const effectiveSeed = seed > 0 ? seed : (plan.title.length + 42);
-            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, futuristic, inspirational, highly detailed, 8k, wide angle`);
+            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k, wide angle`);
             return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true&seed=${effectiveSeed}`;
         }
 
@@ -382,6 +387,29 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                                         <Share2 className="w-4 h-4" />
                                         Share
                                     </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (isSyncing) return;
+                                            try {
+                                                setIsSyncing(true);
+                                                const token = await calendarService.getAccessToken();
+                                                const count = await calendarService.syncToCalendar(plan, token);
+                                                alert(`Successfully synced ${count} events to your Google Calendar!`);
+                                            } catch (error) {
+                                                console.error(error);
+                                                alert('Failed to sync. Please ensure popups are allowed and try again.');
+                                            } finally {
+                                                setIsSyncing(false);
+                                            }
+                                        }}
+                                        disabled={isSyncing}
+                                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${isSyncing
+                                            ? 'text-muted-foreground opacity-50 cursor-not-allowed'
+                                            : 'text-brand-indigo hover:text-brand-indigo/80 hover:scale-105 active:scale-95'}`}
+                                    >
+                                        <CalendarIcon className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
+                                        {isSyncing ? 'Syncing...' : 'Sync to Calendar'}
+                                    </button>
                                 </div>
                             </div>
 
@@ -441,9 +469,16 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                                                         <Sparkles className="w-5 h-5" />
                                                         Remix
                                                     </button>
-                                                    <button className="px-7 py-3 rounded-full bg-white/10 text-white text-base font-medium hover:bg-white/20 transition-colors border border-white/10 hover:scale-105 active:scale-95 duration-200">
-                                                        Save
-                                                    </button>
+
+                                                    {onDelete && (
+                                                        <button
+                                                            onClick={onDelete}
+                                                            className="px-7 py-3 rounded-full bg-red-500/10 text-red-500 text-base font-bold flex items-center gap-2 hover:bg-red-500/20 transition-colors border border-red-500/20 hover:scale-105 active:scale-95 duration-200"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
+                                                            Delete
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -503,40 +538,40 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                                                                     }}
                                                                 >
                                                                     <MilestoneContainer>
-                                                                        <div className={`relative p-5 md:p-6 transition-colors ${themeId === 'tree' ? '' : 'bg-slate-900/40 backdrop-blur-md'}`}>
-                                                                            <div className="flex flex-col gap-3">
+                                                                        <div className={`relative p-5 md:p-6 transition-colors rounded-2xl ${themeId === 'tree' ? '' : 'bg-transparent'}`}>
+                                                                            <div className="flex flex-col gap-3 items-center text-center">
                                                                                 {/* Title Row */}
-                                                                                <div className={`flex gap-4 ${themeId === 'tree' ? 'flex-col items-center justify-center text-center' : 'flex-row items-start justify-between text-left'}`}>
+                                                                                <div className="flex flex-col items-center justify-center text-center gap-2">
                                                                                     <h4 className={`text-lg md:text-xl font-bold font-display leading-tight ${isMilestoneComplete ? 'text-brand-teal line-through opacity-70' : 'text-white'
                                                                                         }`}>
                                                                                         {item.milestone}
                                                                                     </h4>
                                                                                     {isMilestoneComplete && (
-                                                                                        <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-brand-teal bg-brand-teal/10 px-2 py-1 rounded-full">
+                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-teal bg-brand-teal/10 px-2 py-1 rounded-full">
                                                                                             Completed
                                                                                         </span>
                                                                                     )}
                                                                                     {isActive && !isMilestoneComplete && (
-                                                                                        <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-brand-purple bg-brand-purple/10 px-2 py-1 rounded-full animate-pulse">
+                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-purple bg-brand-purple/10 px-2 py-1 rounded-full animate-pulse">
                                                                                             In Progress
                                                                                         </span>
                                                                                     )}
                                                                                 </div>
 
-                                                                                {/* Date Badge */}
-                                                                                <span className={`flex-shrink-0 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-0.5 rounded-full ${themeId === 'tree' ? 'text-white/80' : 'text-cyan-200 bg-cyan-900/30 border border-cyan-400/30 shadow-sm'}`}>
+                                                                                {/* Date Badge - Minimalist for spheres */}
+                                                                                <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-0.5 rounded-full ${themeId === 'tree' || themeId === 'brain' || themeId === 'space' ? 'text-white/60' : 'text-cyan-200/80'}`}>
                                                                                     {item.date}
                                                                                 </span>
 
-                                                                                {/* Description - Readable, High Contrast, Justified */}
+                                                                                {/* Description - Readable, High Contrast, Centered */}
                                                                                 <div className="flex-1 w-full flex items-center justify-center overflow-y-auto no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                                                                    <p className="text-[11px] md:text-xs text-center text-slate-100 font-medium leading-relaxed max-w-[85%] drop-shadow-sm tracking-wide px-2">
+                                                                                    <p className="text-[11px] md:text-xs text-center text-slate-100 font-medium leading-relaxed max-w-[90%] drop-shadow-md tracking-wide px-2">
                                                                                         {item.description}
                                                                                     </p>
                                                                                 </div>
 
                                                                                 {/* Interaction Hint */}
-                                                                                <div className="flex-shrink-0 h-4 opacity-100 text-[9px] font-bold text-white/90 uppercase tracking-[0.2em] drop-shadow-md pb-1">
+                                                                                <div className="flex-shrink-0 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-bold text-white/90 uppercase tracking-[0.2em] drop-shadow-md pb-1">
                                                                                     Tap to Expand
                                                                                 </div>
                                                                             </div>
@@ -615,6 +650,8 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                             milestoneIndex={selectedMilestoneIndex}
                             completedSteps={completedSteps}
                             onStepComplete={handleStepComplete}
+                            goalId={goalId}
+                            goalTitle={plan.title}
                         />
                     </div>
 

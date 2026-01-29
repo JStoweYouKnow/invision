@@ -188,6 +188,10 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
                 const phases = goal.plan?.timeline || [];
                 const planetSize = 100 + Math.min(phases.length * 5, 40); // Increased minimum size for better touch targets
 
+                // Deterministically create a seed index based on goal ID
+                const uniqueString = goal.id || goalIndex.toString();
+                const seedIndex = uniqueString.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
                 return (
                     <React.Fragment key={goal.id}>
                         {/* Phase Stars - rendered independently for correct positioning */}
@@ -255,7 +259,7 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
                             >
                                 <ThemeEntity
                                     size={planetSize}
-                                    index={goalIndex}
+                                    index={seedIndex}
                                     seed={goal.id}
                                 />
                             </div>

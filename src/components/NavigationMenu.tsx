@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Star, Globe, User, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { useMessaging } from '@/contexts/MessagingContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { firestoreService } from '@/lib/firestore';
 
 interface NavigationMenuProps {
     className?: string;
@@ -11,7 +13,28 @@ interface NavigationMenuProps {
 export const NavigationMenu: React.FC<NavigationMenuProps> = ({ className = "", demoMode = false }) => {
     const location = useLocation();
     const { openDrawer } = useMessaging();
+    const { user } = useAuth();
     const pathname = location.pathname;
+    const [totalUnread, setTotalUnread] = useState(0);
+
+    // Subscribe to conversations to track unread count
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
+
+        const unsubscribe = firestoreService.subscribeToConversations(user.uid, (convs) => {
+            const total = convs.reduce((sum, conv) => {
+                return sum + (conv.unreadCounts?.[user.uid] || 0);
+            }, 0);
+            setTotalUnread(total);
+        });
+
+        return () => {
+            unsubscribe();
+            setTotalUnread(0);
+        };
+    }, [user]);
 
     const isActive = (path: string) => {
         if (path === '/' && pathname === '/') return true;
@@ -51,10 +74,17 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({ className = "", 
 
             <button
                 onClick={() => openDrawer()}
-                className={`${linkBaseClass} ${inactiveClass} bg-transparent border-none cursor-pointer`}
+                className={`${linkBaseClass} ${inactiveClass} bg-transparent border-none cursor-pointer relative`}
                 style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit', color: 'white' }}
             >
-                <MessageCircle className="w-4 h-4" style={{ color: 'white' }} />
+                <div className="relative">
+                    <MessageCircle className="w-4 h-4" style={{ color: 'white' }} />
+                    {totalUnread > 0 && (
+                        <div className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                            {totalUnread > 9 ? '9+' : totalUnread}
+                        </div>
+                    )}
+                </div>
                 <span style={{ color: 'white' }}>Messages</span>
             </button>
 

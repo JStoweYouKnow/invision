@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Globe, Sliders, Check, AlertCircle, Volume2, Shield } from 'lucide-react';
 
+import { createPortal } from 'react-dom';
+
 interface UserPreferences {
     publicProfile: boolean;
     soundEnabled?: boolean;
@@ -47,7 +49,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
         setLocalPrefs(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
             {isOpen && (
                 <>
@@ -56,38 +58,44 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
                     />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[70] p-4"
+                        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] h-[700px] z-[9999] p-4 pointer-events-none"
                     >
-                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl text-slate-900">
-                            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                        <div
+                            className="bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full pointer-events-auto text-slate-900"
+                            style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                        >
+                            <div className="p-8 pb-4 flex-shrink-0 flex items-center justify-between">
                                 <div className="flex-1" />
-                                <h2 className="text-lg font-display font-bold flex items-center gap-2 text-slate-900">
+                                <h2 className="text-xl font-display font-bold flex items-center gap-2 text-slate-900">
                                     <Sliders className="w-5 h-5 text-brand-purple" />
                                     Preferences
                                 </h2>
                                 <div className="flex-1 flex justify-end">
-                                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                                    <button
+                                        onClick={onClose}
+                                        className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-500"
+                                    >
                                         <X className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-8 pb-8 flex flex-col gap-4">
                                 {/* Public Profile */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 mt-4">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+                                        <div className="p-2 bg-blue-100 rounded-lg shrink-0">
                                             <Globe className="w-4 h-4 text-blue-600" />
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-slate-900">Public Profile</p>
-                                            <p className="text-xs text-slate-500">Allow others to see your vision board</p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Public Profile</p>
+                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Allow others to see your vision board</p>
                                         </div>
                                     </div>
                                     <button
@@ -101,13 +109,13 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
 
                                 {/* Sound Effects */}
                                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-pink-100 rounded-lg">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+                                        <div className="p-2 bg-pink-100 rounded-lg shrink-0">
                                             <Volume2 className="w-4 h-4 text-pink-600" />
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-slate-900">Sound Effects</p>
-                                            <p className="text-xs text-slate-500">Play interaction sounds</p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Sound Effects</p>
+                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Play interaction sounds</p>
                                         </div>
                                     </div>
                                     <button
@@ -121,13 +129,13 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
 
                                 {/* Analytics */}
                                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-green-100 rounded-lg">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+                                        <div className="p-2 bg-green-100 rounded-lg shrink-0">
                                             <Shield className="w-4 h-4 text-green-600" />
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-slate-900">Analytics</p>
-                                            <p className="text-xs text-slate-500">Share anonymous usage data</p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Analytics</p>
+                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Share anonymous usage data</p>
                                         </div>
                                     </div>
                                     <button
@@ -146,7 +154,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                                     </div>
                                 )}
 
-                                <div className="flex gap-3 pt-2">
+                                <div className="mt-auto pt-4 flex gap-3">
                                     <button
                                         type="button"
                                         onClick={onClose}
@@ -174,6 +182,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                     </motion.div>
                 </>
             )}
-        </AnimatePresence>
-    );
+        </AnimatePresence>,
+        document.body
+    ) : null;
 };

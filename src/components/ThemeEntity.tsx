@@ -25,7 +25,7 @@ function getEntityType(themeId: string, index: number): EntityType {
         case 'tree':
             return FOREST_TYPES[index % FOREST_TYPES.length];
         default: {
-            const celestialTypes: CelestialType[] = ['planet', 'moon', 'gasGiant', 'icePlanet'];
+            const celestialTypes: CelestialType[] = ['planet', 'moon', 'icePlanet'];
             return celestialTypes[index % celestialTypes.length];
         }
     }

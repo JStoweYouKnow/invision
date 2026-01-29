@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Calendar, ArrowRight, Globe, Grid3X3, Sun, Brain, TreeDeciduous, Network, Leaf } from 'lucide-react';
+import { Calendar, ArrowRight, Globe, Grid3X3, Sun, Brain, TreeDeciduous, Network, Leaf, Lock } from 'lucide-react';
 import { firestoreService, type SavedGoal } from '@/lib/firestore';
 import { MOCK_GOALS } from '@/lib/mockData';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,7 +39,7 @@ const themeViewModes = {
     },
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ demoMode = true }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ demoMode = false }) => {
     const { user } = useAuth();
     const { currentTheme } = useTheme();
     const [goals, setGoals] = useState<SavedGoal[]>([]);
@@ -80,9 +80,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = true }) => {
             {/* Theme Background */}
             <ThemeBackground className="z-0" />
 
-            {/* Fixed Logo Top Left */}
-            <div className="fixed top-6 left-6 z-50">
+            {/* Fixed Logo & Theme Toggle Top Left */}
+            <div className="fixed top-6 left-6 z-50 flex items-center gap-14">
                 <HomeButton />
+                <ThemeQuickToggle />
             </div>
 
             <div className="w-full max-w-6xl mx-auto px-4 md:px-8 relative z-10">
@@ -91,6 +92,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = true }) => {
                     <div className="text-center">
                         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2 tracking-tight">My Visions</h1>
                         <p className="text-lg text-slate-300">Track your progress and revisit your visions.</p>
+                        <button
+                            onClick={async () => {
+                                if (window.confirm('Create dummy users (Sarah & David) for testing?')) {
+                                    const { seedDummyData } = await import('@/lib/seeder');
+                                    const result = await seedDummyData();
+                                    alert(result.message);
+                                }
+                            }}
+                            className="mt-4 text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded shadow-lg hover:shadow-purple-500/25 transition-all mx-auto"
+                        >
+                            Seed Data
+                        </button>
                     </div>
                 </div>
 
@@ -166,8 +179,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = true }) => {
                     {/* Separator */}
                     <div className="hidden md:block w-px h-6 bg-white/20" />
 
-                    {/* Theme Toggle */}
-                    <ThemeQuickToggle />
                 </div>
 
                 {goals.length === 0 ? (
@@ -211,11 +222,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = true }) => {
                                             loading="lazy"
                                         />
 
-                                        {/* Status Badge Overlay */}
-                                        <div className="absolute top-6 right-6 z-20">
+                                        {/* Status & Visibility Badges */}
+                                        <div className="absolute top-6 right-6 z-20 flex flex-col gap-2 items-end">
                                             <span className="px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white text-xs font-bold uppercase tracking-wider">
                                                 In Progress
                                             </span>
+
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.preventDefault(); // Prevent navigation
+                                                    e.stopPropagation();
+                                                    try {
+                                                        const newStatus = !goal.isPublic;
+                                                        await firestoreService.toggleVisibility(goal.id!, newStatus);
+                                                        setGoals(prev => prev.map(g =>
+                                                            g.id === goal.id ? { ...g, isPublic: newStatus } : g
+                                                        ));
+                                                    } catch (error) {
+                                                        console.error("Failed to toggle visibility", error);
+                                                    }
+                                                }}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 ${goal.isPublic
+                                                    ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                                                    : 'bg-black/40 text-slate-400 hover:text-white hover:bg-black/60'
+                                                    }`}
+                                            >
+                                                {goal.isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                                                {goal.isPublic ? 'Public' : 'Private'}
+                                            </button>
                                         </div>
                                     </div>
 

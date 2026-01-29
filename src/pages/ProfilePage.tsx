@@ -5,6 +5,7 @@ import { firestoreService, type UserProfile } from '@/lib/firestore';
 import { MOCK_USER } from '@/lib/mockData';
 import { Camera, Mail, User, Bell, Save, Palette, LogOut, Trash2, ChevronRight, Sliders } from 'lucide-react';
 import { ThemeSelector } from '@/components/ThemeSelector';
+import { ThemeQuickToggle } from '@/components/ThemeQuickToggle';
 import { ThemeBackground } from '@/components/backgrounds';
 import { HomeButton } from '@/components/HomeButton';
 import { NavigationMenu } from '@/components/NavigationMenu';
@@ -154,8 +155,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) =>
             <ThemeBackground className="z-0" />
 
             {/* Fixed Logo Top Left */}
-            <div className="fixed top-6 left-6 z-50">
+            <div className="fixed top-6 left-6 z-50 flex items-center gap-14">
                 <HomeButton />
+                <ThemeQuickToggle />
             </div>
 
             <div className="max-w-xl mx-auto px-6 py-12 relative z-10" style={{ maxWidth: '576px' }}>

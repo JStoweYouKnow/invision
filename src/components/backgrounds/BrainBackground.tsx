@@ -86,7 +86,7 @@ export const BrainBackground: React.FC<BrainBackgroundProps> = ({ className = ''
                 style={{ background: `radial-gradient(circle, ${colors.accent}40 0%, transparent 70%)` }} />
 
             {/* SVG for dendrite connections */}
-            <svg className="absolute inset-0 w-full h-full">
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <defs>
                     <linearGradient id="dendriteGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor={colors.primary} stopOpacity="0.6" />
@@ -115,9 +115,9 @@ export const BrainBackground: React.FC<BrainBackgroundProps> = ({ className = ''
                     return (
                         <motion.path
                             key={id}
-                            d={`M ${from.x}% ${from.y}% Q ${midX + perpX}% ${midY + perpY}% ${to.x}% ${to.y}%`}
+                            d={`M ${from.x} ${from.y} Q ${midX + perpX} ${midY + perpY} ${to.x} ${to.y}`}
                             stroke="url(#dendriteGradient)"
-                            strokeWidth="1.5"
+                            strokeWidth="0.5"
                             fill="none"
                             filter="url(#dendriteGlow)"
                             initial={{ pathLength: 0, opacity: 0 }}
@@ -139,7 +139,7 @@ export const BrainBackground: React.FC<BrainBackgroundProps> = ({ className = ''
                     return (
                         <motion.circle
                             key={`pulse-${id}`}
-                            r="3"
+                            r="0.5"
                             fill={colors.accent}
                             filter="url(#dendriteGlow)"
                             initial={{ opacity: 0 }}
@@ -154,7 +154,7 @@ export const BrainBackground: React.FC<BrainBackgroundProps> = ({ className = ''
                                 ease: "easeInOut"
                             }}
                             style={{
-                                offsetPath: `path("M ${from.x}% ${from.y}% Q ${midX + perpX}% ${midY + perpY}% ${to.x}% ${to.y}%")`,
+                                offsetPath: `path("M ${from.x} ${from.y} Q ${midX + perpX} ${midY + perpY} ${to.x} ${to.y}")`,
                             }}
                         />
                     );
