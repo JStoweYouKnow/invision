@@ -10,7 +10,7 @@ export { Constellation } from './Constellation';
 // View components
 export { CosmosMap } from './CosmosMap';
 export { MissionControl } from './MissionControl';
-export { SolarSystemHome } from './SolarSystemHome';
+
 
 // AI Assistant
 export { TheGuide } from './TheGuide';
@@ -27,3 +27,8 @@ export { CosmicJourneyView } from './CosmicJourneyView';
 export { GoalInput } from './GoalInput';
 export { MilestoneModal } from './MilestoneModal';
 export { PlanViewer } from './PlanViewer';
+
+// Accountability & Date Change Components
+export { DateChangeReflectionModal } from './DateChangeReflectionModal';
+export { PauseGoalModal } from './PauseGoalModal';
+export { GoalInsights } from './GoalInsights';

@@ -35,7 +35,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80]"
+                        className="fixed inset-0 modal-backdrop-macos z-[80]"
                     />
 
                     {/* Modal */}
@@ -46,7 +46,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[90] p-4"
                         style={{ width: '90%', maxWidth: '28rem' }}
                     >
-                        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl text-slate-900" style={{ backgroundColor: '#ffffff', color: '#0f172a' }}>
+                        <div className="modal-macos rounded-2xl overflow-hidden text-slate-900 w-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', color: '#0f172a' }}>
                             <div className="p-8 text-center">
                                 <div className={`mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-5 ${isDestructive ? 'bg-red-50 text-red-500' : 'bg-brand-purple/5 text-brand-purple'}`}>
                                     <AlertCircle className="w-7 h-7" />

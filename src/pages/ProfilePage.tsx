@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { firestoreService, type UserProfile } from '@/lib/firestore';
+import { updateProfile } from 'firebase/auth'; // Import updateProfile
+import { auth } from '@/lib/firebase'; // Import auth instance
 import { MOCK_USER } from '@/lib/mockData';
 import { Camera, Mail, User, Bell, Save, Palette, LogOut, Trash2, ChevronRight, Sliders } from 'lucide-react';
 import { ThemeSelector } from '@/components/ThemeSelector';
@@ -11,19 +14,58 @@ import { HomeButton } from '@/components/HomeButton';
 import { NavigationMenu } from '@/components/NavigationMenu';
 import { EmailSettingsModal } from '@/components/profile/EmailSettingsModal';
 import { PreferencesModal } from '@/components/profile/PreferencesModal';
+import { DeleteConfirmationModal } from '@/components/profile/DeleteConfirmationModal';
+import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
+import { type NotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES } from '@/lib/notifications';
 
-interface ProfilePageProps {
+export interface ProfilePageProps {
     demoMode?: boolean;
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) => {
     const { user, signOut } = useAuth();
+    const [searchParams] = useSearchParams(); // Add searchParams hook
+
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    // Modal states
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showNotificationModal, setShowNotificationModal] = useState(false);
+
+    // Initial check for query params to open specific modals
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'notifications') {
+            setShowNotificationModal(true);
+        } else if (tab === 'emails') {
+            setShowEmailModal(true);
+        } else if (tab === 'preferences') {
+            setShowPreferencesModal(true);
+        }
+
+        // Optional: Clean up URL after opening modal so it doesn't reopen on refresh if desired, 
+        // but keeping it is fine for deep linking support.
+    }, [searchParams]);
+
+    // ... notification prefs state definition ...
+    const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() => {
+        try {
+            const stored = localStorage.getItem('invision_notification_prefs');
+            if (stored) {
+                return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...JSON.parse(stored) };
+            }
+        } catch (e) {
+            console.warn('Failed to load notification prefs', e);
+        }
+        return DEFAULT_NOTIFICATION_PREFERENCES;
+    });
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -118,6 +160,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) =>
         setTimeout(() => setMessage(null), 3000);
     };
 
+    const handleConfirmDelete = async () => {
+        if (!user || !profile) return;
+
+        setIsSaving(true);
+        try {
+            const updatedProfile = { ...profile, photoURL: '' };
+            setProfile(updatedProfile);
+
+            // Update Firestore
+            await firestoreService.updateUserProfile(user.uid, updatedProfile);
+
+            // Update Auth
+            if (auth.currentUser) {
+                try {
+                    await updateProfile(auth.currentUser, { photoURL: '' });
+                } catch (err) {
+                    console.warn("Auth profile update failed", err);
+                }
+            }
+            setMessage({ type: 'success', text: 'Profile picture removed' });
+        } catch (error) {
+            console.error("Failed to remove image", error);
+            setMessage({ type: 'error', text: 'Failed to remove image' });
+        } finally {
+            setIsSaving(false);
+            setTimeout(() => setMessage(null), 3000);
+            setShowDeleteModal(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -175,13 +247,159 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) =>
                     <div className="px-6 md:px-20 py-12 text-center">
                         <div className="relative w-96 h-96 mx-auto mb-12 group" style={{ width: '384px', height: '384px' }}>
                             <img
-                                src={profile.photoURL}
+                                src={profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=6366f1&color=fff`}
                                 alt={profile.displayName}
+                                key={profile.photoURL} // Force re-render if URL changes
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null; // Prevent infinite loop
+                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=6366f1&color=fff`;
+                                }}
                                 className="w-full h-full rounded-full object-cover border-2 border-brand-purple/20 shadow-xl"
                             />
-                            <button className="absolute bottom-10 right-10 p-2 bg-brand-purple rounded-full text-white hover:bg-brand-purple/80 transition-colors shadow-lg group-hover:scale-105" style={{ bottom: '40px', right: '40px' }}>
-                                <Camera className="w-6 h-6" />
-                            </button>
+                            <input
+                                type="file" // Re-added input tag
+                                ref={fileInputRef} // Use ref
+                                className="hidden"
+                                accept="image/png, image/jpeg, image/webp, image/gif"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file || !user) return;
+
+                                    // 1. Check strict file size (max 5MB initial)
+                                    if (file.size > 5 * 1024 * 1024) {
+                                        setMessage({ type: 'error', text: 'Image must be smaller than 5MB' });
+                                        // Reset input
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                        return;
+                                    }
+
+                                    // 2. Check strict file type
+                                    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                                    if (!allowedTypes.includes(file.type)) {
+                                        setMessage({ type: 'error', text: `Unsupported file type: ${file.type}. Please use JPG, PNG, or WebP.` });
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                        return;
+                                    }
+
+                                    setIsSaving(true);
+                                    try {
+                                        // 2. Client-side Resize & Compression
+                                        // Create a promise-based helper to resize image
+                                        const compressImage = (file: File, maxDimension: number, quality: number): Promise<string> => {
+                                            return new Promise((resolve, reject) => {
+                                                const reader = new FileReader();
+                                                reader.readAsDataURL(file);
+                                                reader.onload = (event) => {
+                                                    const img = new Image();
+                                                    img.src = event.target?.result as string;
+                                                    img.onload = () => {
+                                                        const canvas = document.createElement('canvas');
+                                                        let width = img.width;
+                                                        let height = img.height;
+
+                                                        if (width > height) {
+                                                            if (width > maxDimension) {
+                                                                height *= maxDimension / width;
+                                                                width = maxDimension;
+                                                            }
+                                                        } else {
+                                                            if (height > maxDimension) {
+                                                                width *= maxDimension / height;
+                                                                height = maxDimension;
+                                                            }
+                                                        }
+
+                                                        canvas.width = width;
+                                                        canvas.height = height;
+                                                        const ctx = canvas.getContext('2d');
+                                                        ctx?.drawImage(img, 0, 0, width, height);
+
+                                                        // Compress to JPEG
+                                                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                                                        resolve(dataUrl);
+                                                    };
+                                                    img.onerror = () => reject(new Error("Failed to load image. content. Please ensure it is a valid JPG or PNG file."));
+                                                };
+                                                reader.onerror = () => reject(new Error("Failed to read file."));
+                                            });
+                                        };
+
+                                        // Generate High Res for Firestore (Profile Page Display)
+                                        const highResBase64 = await compressImage(file, 512, 0.85);
+
+                                        // Generate Low Res for Firebase Auth (Navbar Icon - must be very small < 2KB URL length)
+                                        // 32x32 at 0.4 quality is almost certainly safe for Auth limits (usually < 1KB)
+                                        const lowResBase64 = await compressImage(file, 32, 0.4);
+
+                                        // 3. Double Check base64 size for Firestore (1MB limit)
+                                        if (highResBase64.length > 800_000) {
+                                            throw new Error("Image is still too large. Please choose a simpler image.");
+                                        }
+
+                                        const updatedProfile = { ...profile, photoURL: highResBase64 };
+                                        setProfile(updatedProfile);
+
+                                        // Update Firestore - This MUST succeed - Store High Res
+                                        await firestoreService.updateUserProfile(user.uid, updatedProfile);
+
+                                        // Update Firebase Auth User Object - Best effort - Store Low Res
+                                        if (auth.currentUser) {
+                                            try {
+                                                if (lowResBase64.length >= 2048) {
+                                                    // Silently skip if still too large to avoid error spam
+                                                } else {
+                                                    await updateProfile(auth.currentUser, {
+                                                        photoURL: lowResBase64
+                                                    });
+                                                    // Force token refresh to trigger onIdTokenChanged in AuthContext
+                                                    await auth.currentUser.reload();
+                                                }
+                                            } catch (authError) {
+                                                console.warn("Failed to update Auth profile photo", authError);
+                                                // Swallow error, as Firestore is the primary source of truth for the app
+                                            }
+                                        }
+
+                                        setMessage({ type: 'success', text: 'Profile picture updated!' });
+                                        setTimeout(() => setMessage(null), 3000);
+
+                                    } catch (error) {
+                                        console.error("Failed to upload/compress image", error);
+                                        const errorMessage = error instanceof Error ? error.message : 'Failed to process image';
+                                        setMessage({ type: 'error', text: errorMessage });
+                                    } finally {
+                                        setIsSaving(false);
+                                        // Reset input so same file can be selected again
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                    }
+                                }}
+                            />
+                            <div className="absolute bottom-10 right-10 flex gap-2" style={{ bottom: '40px', right: '40px' }}>
+                                {/* Only show garbage can if photo exists and is not the default ui-avatars one */}
+                                {profile.photoURL && !profile.photoURL.includes('ui-avatars.com') && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!user) return;
+                                            setShowDeleteModal(true);
+                                        }}
+                                        className="p-2 bg-red-500 rounded-full text-white hover:bg-red-600 transition-colors shadow-lg hover:scale-105"
+                                        title="Remove Profile Picture"
+                                        type="button"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => fileInputRef.current?.click()} // Use ref click
+                                    className="p-2 bg-brand-purple rounded-full text-white hover:bg-brand-purple/80 transition-colors shadow-lg hover:scale-105"
+                                    title="Change Profile Picture"
+                                    type="button"
+                                >
+                                    <Camera className="w-6 h-6" />
+                                </button>
+                            </div>
                         </div>
                         <h2 className="text-2xl font-bold mb-2 mt-8" style={{ marginTop: '32px' }}>{profile.displayName}</h2>
                         <p className="text-muted-foreground mb-4">{profile.email}</p>
@@ -282,6 +500,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) =>
                                     </div>
                                     <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-white group-hover:translate-x-1 transition-all" />
                                 </button>
+
+                                <button
+                                    onClick={() => setShowNotificationModal(true)}
+                                    className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group border border-white/5 hover:border-white/20"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-orange-500/20 rounded-lg group-hover:scale-110 transition-transform shrink-0">
+                                            <Bell className="w-4 h-4 text-orange-400" />
+                                        </div>
+                                        <div className="text-left flex items-baseline gap-2">
+                                            <span className="font-medium">Notifications</span>
+                                            <span className="text-xs text-muted-foreground hidden sm:inline">Reminders & alerts</span>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                                </button>
                             </div>
                         </div>
 
@@ -366,6 +600,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ demoMode = false }) =>
                 onClose={() => setShowPreferencesModal(false)}
                 preferences={profile.preferences}
                 onUpdate={handlePreferencesUpdate}
+            />
+
+            <DeleteConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleConfirmDelete}
+                title="Remove Profile Picture"
+                message="Are you sure you want to remove your profile picture? This will revert your avatar to the default."
+            />
+
+            <NotificationSettingsModal
+                isOpen={showNotificationModal}
+                onClose={() => setShowNotificationModal(false)}
+                preferences={notificationPrefs}
+                onUpdate={async (newPrefs) => {
+                    setNotificationPrefs(newPrefs);
+                    // In a real app, you'd persist this to Firestore
+                    // For now, store in localStorage for demo
+                    localStorage.setItem('invision_notification_prefs', JSON.stringify(newPrefs));
+                    setMessage({ type: 'success', text: 'Notification settings updated' });
+                    setTimeout(() => setMessage(null), 3000);
+                }}
             />
         </div>
 

@@ -47,7 +47,7 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
+                        className="fixed inset-0 modal-backdrop-macos z-[9998]"
                     />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -56,8 +56,8 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({
                         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] h-[700px] z-[9999] p-4 pointer-events-none"
                     >
                         <div
-                            className="bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full pointer-events-auto text-slate-900"
-                            style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                            className="modal-macos rounded-2xl overflow-hidden flex flex-col h-full pointer-events-auto text-slate-900"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', color: '#000000' }}
                         >
                             <div className="p-8 pb-4 flex-shrink-0 flex items-center justify-between">
                                 <div className="flex-1" />

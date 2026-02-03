@@ -12,8 +12,8 @@ export const MoonContainer: React.FC<ThemeContainerProps> = ({ children, isFocus
                 className
             )}
             style={{
-                minHeight: '400px',
-                width: '400px', // Fixed width for sphere
+                minHeight: 'min(90vw, 550px)',
+                width: 'min(90vw, 550px)', // Fixed width for sphere
                 backgroundColor: '#d1d5db',
                 // Photorealistic 3D Moon Surface with Craters:
                 backgroundImage: `

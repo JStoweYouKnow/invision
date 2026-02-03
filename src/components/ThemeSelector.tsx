@@ -152,18 +152,15 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ onCreateCustom }) 
                     )}
                 </div>
 
-                {/* Theme info */}
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-white/10 shrink-0" style={{ color: theme.colors.primary }}>
+                {/* Theme info - centered under preview */}
+                <div className="flex items-center justify-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-white/10 shrink-0" style={{ color: theme.colors.primary }}>
                         {(() => {
                             const Icon = isCustom || !themeIcons[theme.id] ? Sparkles : themeIcons[theme.id];
                             return <Icon className="w-4 h-4" />;
                         })()}
                     </div>
-                    <div className="flex-1 min-w-0 text-left flex items-baseline gap-2">
-                        <span className="font-semibold text-white truncate shrink-0">{theme.name}</span>
-                        <span className="text-xs text-white/60 truncate opacity-70 hidden sm:inline">{theme.description}</span>
-                    </div>
+                    <span className="font-semibold text-white">{theme.name}</span>
                 </div>
 
                 {/* Hover glow effect */}

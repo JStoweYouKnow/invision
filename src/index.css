@@ -1,11 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
+    /* --- Typography Tokens --- */
+    --font-display: 'Audiowide', cursive;
+    --font-body: 'Outfit', system-ui, sans-serif;
+    --base-size: 1rem;
+    --text-caption: 0.64rem;
+    --text-small: 0.8rem;
+    --text-body: 1rem;
+    --text-body-lg: 1.25rem;
+    --text-h6: 1.25rem;
+    --text-h5: 1.563rem;
+    --text-h4: 1.953rem;
+    --text-h3: 2.441rem;
+    --text-h2: 3.052rem;
+    --text-h1: 3.815rem;
+    --lh-body: 1.6;
+    --lh-heading: 1.1;
+    --fw-regular: 400;
+    --fw-bold: 700;
+
+    /* --- Theme Colors (Cosmic/Psychedelic) --- */
+    --color-bg-deep: #0b0d17;
+    --color-text-main: #e2e8f0;
+    --color-text-muted: #94a3b8;
+    --color-neon-pink: #d946ef;
+    --color-neon-cyan: #06b6d4;
+    --color-neon-purple: #8b5cf6;
+    --color-glow: rgba(217, 70, 239, 0.4);
+
     --background: 260 80% 8%;
     /* #0f0529 - Very Deep Midnight Purple */
     --foreground: 270 20% 95%;
@@ -133,9 +161,18 @@
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-family: 'Inter', sans-serif;
+    background-color: var(--color-bg-deep);
+    color: var(--color-text-main);
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    line-height: var(--lh-body);
+
+    /* Cosmic Background */
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.1) 0%, transparent 30%),
+      linear-gradient(to bottom, #0b0d17 0%, #1a1b26 100%);
+    min-height: 100vh;
   }
 
   h1,
@@ -144,7 +181,7 @@
   h4,
   h5,
   h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: var(--font-display);
   }
 
   /* Force all links to be white unless overridden by utility classes */
@@ -268,6 +305,161 @@
   /* brand-pink */
 }
 
+
+/* --- Typography Utilities --- */
+.text-caption {
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text-small {
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+}
+
+.text-body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+}
+
+.text-body-lg {
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+}
+
+/* Headings (Display Font + Clamp + Glow) */
+.text-h1,
+.text-h2,
+.text-h3,
+.text-h4,
+.text-h5,
+.text-h6 {
+  font-family: var(--font-display);
+  line-height: var(--lh-heading);
+  margin-block: 0.5em;
+  color: #fff;
+  text-shadow: 0 0 12px var(--color-glow);
+  font-weight: var(--fw-regular);
+}
+
+.text-h6 {
+  font-size: clamp(1rem, 2vw, var(--text-h6));
+}
+
+.text-h5 {
+  font-size: clamp(1.25rem, 2.5vw, var(--text-h5));
+}
+
+.text-h4 {
+  font-size: clamp(1.5rem, 3vw, var(--text-h4));
+}
+
+.text-h3 {
+  font-size: clamp(1.75rem, 4vw, var(--text-h3));
+}
+
+.text-h2 {
+  font-size: clamp(2rem, 5vw, var(--text-h2));
+}
+
+.text-h1 {
+  font-size: clamp(2.5rem, 7vw, var(--text-h1));
+}
+
 .glass-event {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* --- macOS Modal System --- */
+.modal-backdrop-macos {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.modal-macos {
+  /* Visual Style */
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 24px 72px -12px rgba(0, 0, 0, 0.4),
+    0 12px 24px -8px rgba(0, 0, 0, 0.2) !important;
+
+  /* Shape */
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+
+@layer components {
+
+  /* Base Button */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-full font-bold transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-indigo ring-offset-black/50 select-none;
+  }
+
+  /* Sizes */
+  .btn--sm {
+    @apply px-4 py-1.5 text-xs;
+  }
+
+  .btn--md {
+    @apply px-6 py-2.5 text-sm;
+  }
+
+  .btn--lg {
+    @apply px-8 py-4 text-base tracking-wide;
+  }
+
+  .btn--icon {
+    @apply p-2.5 aspect-square;
+  }
+
+  /* Variants */
+  .btn--primary {
+    @apply bg-brand-indigo text-white shadow-lg shadow-brand-indigo/30 hover:bg-brand-indigo/90 hover:shadow-brand-indigo/40 active:scale-[0.98];
+  }
+
+  .btn--secondary {
+    @apply bg-white/10 text-white backdrop-blur-md border border-white/10 hover:bg-white/20 hover:border-white/20 active:scale-[0.98];
+  }
+
+  .btn--tertiary {
+    @apply bg-transparent text-white/70 hover:text-white hover:bg-white/5 active:scale-[0.98];
+  }
+
+  .btn--destructive {
+    @apply bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98];
+  }
+
+  .btn--ghost {
+    @apply bg-transparent text-white hover:bg-white/10 active:scale-[0.98];
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SKELETON LOADING ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(168, 85, 247, 0.12) 40%,
+      rgba(255, 255, 255, 0.08) 60%,
+      rgba(255, 255, 255, 0.03) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 2s ease-in-out infinite;
 }

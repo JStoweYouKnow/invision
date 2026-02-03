@@ -1,22 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar as CalendarIcon, ExternalLink, LayoutList, Trophy, Sparkles, Share2, Globe, Lock, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, LayoutList, Trophy, Sparkles, Share2, Globe, Lock, Trash2, ExternalLink, Download, Pause, Play } from 'lucide-react';
 import type { GeneratedPlan } from '@/lib/gemini';
 import { TheGuide } from '@/components/TheGuide';
 import { CalendarView } from '@/components/CalendarView';
 import { MilestoneModal } from '@/components/MilestoneModal';
 import { AchievementCelebration } from '@/components/AchievementCelebration';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import type { Achievement, AchievementType } from '@/types';
+import type { Achievement, AchievementType, DateChange, PauseRecord, StepChange } from '@/types';
 import { Fireworks } from '@/components/Fireworks';
 // import { useAuth } from '@/contexts/AuthContext';
 import { ThemeBackground } from '@/components/backgrounds';
 import { ThemeQuickToggle } from '@/components/ThemeQuickToggle';
 // import { TimelineNode } from '@/components/themes/TimelineNode';
-import { MoonContainer } from '@/components/themes/MoonContainer';
-import { BrainContainer } from '@/components/themes/BrainContainer';
-import { TreeContainer } from '@/components/themes/TreeContainer';
 import { useTheme } from '@/contexts/ThemeContext';
+import { ExportModal } from '@/components/ExportModal';
+import { Tooltip } from '@/components/TooltipSystem';
+import { PauseGoalModal } from '@/components/PauseGoalModal';
+import { GoalInsights } from '@/components/GoalInsights';
 
 interface PlanViewerProps {
     plan: GeneratedPlan;
@@ -28,6 +29,23 @@ interface PlanViewerProps {
     onUpdatePlan?: (newPlan: GeneratedPlan) => void;
     goalId?: string;
     onDelete?: () => void;
+    onProgressChange?: (completed: number, total: number) => void;
+    isReadOnly?: boolean; // Prevents milestone/step completion for non-owners
+    authorName?: string; // Goal owner's name for header display
+    // Pause functionality
+    isPaused?: boolean;
+    pausedAt?: number;
+    pauseReason?: string;
+    pauseReasonCategory?: PauseRecord['reasonCategory'];
+    pauseHistory?: PauseRecord[];
+    onPause?: (reason: string, reasonCategory: PauseRecord['reasonCategory']) => void;
+    onResume?: () => void;
+    // Date change callback
+    onMilestoneDateChange?: (milestoneIndex: number, newDate: string, change: DateChange) => void;
+    // Step change callback
+    onMilestoneStepsChange?: (milestoneIndex: number, steps: { text: string; date: string; habit?: string }[], changes: StepChange[]) => void;
+    // For insights
+    goalCreatedAt?: number;
 }
 
 // const QUOTES = [
@@ -40,12 +58,38 @@ interface PlanViewerProps {
 
 import { calendarService } from '@/lib/calendar';
 
-export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoHome, isPublic, onTogglePublic, standalone = true, onUpdatePlan, goalId, onDelete }) => {
+export const PlanViewer: React.FC<PlanViewerProps> = ({
+    plan,
+    visionImage,
+    onGoHome,
+    isPublic,
+    onTogglePublic,
+    standalone = true,
+    onUpdatePlan,
+    goalId,
+    onDelete,
+    onProgressChange,
+    isReadOnly = false,
+    authorName,
+    // Pause props
+    isPaused = false,
+    pausedAt,
+    pauseReason,
+    pauseHistory = [],
+    onPause,
+    onResume,
+    // Date change props
+    onMilestoneDateChange,
+    onMilestoneStepsChange,
+    goalCreatedAt = Date.now(),
+}) => {
 
     // const { user } = useAuth();
-    const [imgSeed, setImgSeed] = useState(0);
     const [viewMode, setViewMode] = useState<'timeline' | 'calendar' | 'vision'>('vision'); // Debug: default to vision
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [showPauseModal, setShowPauseModal] = useState(false);
+    const exportRef = useRef<HTMLDivElement>(null);
 
     // Check if the provided image is a valid image URL
     // Accept any valid http(s) URL or data URI - only treat as placeholder if empty/invalid
@@ -102,8 +146,8 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
         return baseSource;
     };
 
-    const displayImage = getDynamicUrl(visionImage, imgSeed);
-    const showDynamicImage = imgSeed > 0 || (visionImage && (visionImage.includes('pollinations.ai') || visionImage.startsWith('data:image/'))) || (visionImage && isPlaceholder(visionImage));
+    const displayImage = getDynamicUrl(visionImage, 0);
+    const showDynamicImage = (visionImage && (visionImage.includes('pollinations.ai') || visionImage.startsWith('data:image/'))) || (visionImage && isPlaceholder(visionImage));
 
     // Select quote based on seed (pseudo-random but consistent for same seed)
     // Select quote based on seed (pseudo-random but consistent for same seed)
@@ -112,18 +156,9 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
 
     const { currentTheme } = useTheme();
     // cast currentTheme.id to string to avoid type error if strict unions don't overlap
-    const themeId = currentTheme.id as string;
+    // cast currentTheme.id to string to avoid type error if strict unions don't overlap
 
-    const MilestoneContainer = React.useMemo(() => {
-        switch (themeId) {
-            case 'brain':
-                return BrainContainer;
-            case 'tree':
-                return TreeContainer;
-            default:
-                return MoonContainer;
-        }
-    }, [themeId]);
+    // ... render ...
 
     // ... render ...
 
@@ -141,10 +176,16 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
     const [selectedMilestone, setSelectedMilestone] = useState<GeneratedPlan['timeline'][0] | null>(null);
     const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState<number>(-1);
 
-    // Calculate total steps across all milestones
-    const totalSteps = plan.timeline.reduce((acc, item) => acc + (item.steps?.length || 0), 0);
+    // Calculate progress
+    const totalSteps = Array.isArray(plan.timeline)
+        ? plan.timeline.reduce((acc, item) => acc + (item.steps?.length || 0), 0)
+        : 0;
     const completedCount = completedSteps.size;
-    const progressPercent = totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0;
+
+    // Notify parent of progress changes
+    useEffect(() => {
+        onProgressChange?.(completedCount, totalSteps);
+    }, [completedCount, totalSteps, onProgressChange]);
 
     // Handle step completion
     const handleStepComplete = (milestoneIndex: number, stepIndex: number) => {
@@ -226,12 +267,12 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
     return (
         <ErrorBoundary>
             {/* Conditional Wrapper based on standalone prop */}
-            <div className={standalone ? "min-h-screen bg-transparent text-foreground relative overflow-hidden" : "relative"}>
+            <div className={standalone ? "h-screen bg-transparent text-foreground relative overflow-hidden flex flex-col" : "relative"}>
                 {/* Theme Background only if standalone */}
                 {standalone && <ThemeBackground className="z-0" />}
 
                 {/* Main Content */}
-                <div className={`relative z-10 w-full max-w-xl mx-auto space-y-10 pb-32 ${standalone ? "p-4 md:p-8" : ""}`}>
+                <div className={`relative z-10 w-full max-w-6xl mx-auto flex flex-col flex-1 overflow-hidden ${standalone ? "p-4 md:p-6" : ""}`}>
                     {/* ... (Fireworks, Reward, Header content same) ... */}
                     <Fireworks show={showConfetti} />
                     <AnimatePresence>
@@ -254,112 +295,94 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                         )}
                     </AnimatePresence>
 
-                    {/* Home Button & Progress Bar */}
-                    <div className="flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
+                    {/* Home Button & Theme Toggle - Compact Header */}
+                    {standalone && (
+                        <div className="flex items-center justify-between shrink-0 py-2">
                             {onGoHome && (
                                 <motion.button
                                     onClick={onGoHome}
                                     whileHover={{ scale: 1.02, opacity: 0.9 }}
                                     whileTap={{ scale: 0.98 }}
-                                    className="flex items-center gap-3 group transition-all duration-300 bg-transparent border-none p-0 outline-none"
+                                    className="flex items-center gap-2 group transition-all duration-300 bg-transparent border-none p-0 outline-none"
                                 >
-                                    <div className="relative flex items-center justify-center">
-                                        <img src="/images/galaxy-bubble-v2.png" alt="InVision logo" className="w-12 h-12 object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" style={{ width: '48px', height: '48px' }} />
-                                    </div>
-                                    <span className="font-display tracking-tight leading-[0.9] italic" style={{ color: '#ffffff', fontSize: '32px', fontWeight: 900 }}>InVision</span>
+                                    <img src="/images/galaxy-bubble-v2.png" alt="InVision logo" className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
+                                    <span className="font-display tracking-tight leading-[0.9] italic text-white text-2xl font-black">InVision</span>
                                 </motion.button>
                             )}
-                            <div className="flex items-center gap-4">
-                                <ThemeQuickToggle />
-                            </div>
+                            <ThemeQuickToggle />
                         </div>
-
-                        {totalSteps > 0 && (
-                            <div className="w-full">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <Trophy className="w-4 h-4 text-brand-purple" />
-                                        <span className="font-bold text-brand-slate text-sm">
-                                            {completedCount} / {totalSteps} steps
-                                        </span>
-                                    </div>
-                                    <span className="text-xs text-white/60 font-medium">{Math.round(progressPercent)}%</span>
-                                </div>
-                                <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${progressPercent}%` }}
-                                        className="h-full bg-gradient-to-r from-brand-indigo to-brand-purple rounded-full shadow-[0_0_10px_rgba(168,85,247,0.4)]"
-                                        transition={{ type: "spring", stiffness: 100 }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    )}
 
 
-                    {/* View Toggle & Content */}
-                    <div className="space-y-32">
-                        <div className="flex flex-col items-center gap-6">
-                            <h2 className="text-4xl font-display font-bold text-center">Your Vision</h2>
 
-                            <div className="flex flex-wrap justify-center items-center gap-16">
-                                {/* View Modes Container */}
-                                <div className="flex flex-wrap justify-center items-center gap-2 p-1 bg-white/5 rounded-full w-fit backdrop-blur-md">
+                    {/* View Toggle & Content - Fills remaining space */}
+                    <div className="flex flex-col flex-1 min-h-0 gap-2 md:gap-4">
+                        {/* Header with title and controls */}
+                        <div className="flex flex-col items-center gap-2 md:gap-3 shrink-0">
+                            <h2 className="text-xl md:text-2xl lg:text-3xl font-display font-bold text-center">{authorName ? `${authorName}'s Vision` : 'Your Vision'}</h2>
+
+                            {/* Mobile-friendly button layout: stacks on small screens */}
+                            <div className="flex flex-col sm:flex-row flex-wrap justify-center items-center gap-2">
+                                {/* View Mode Buttons */}
+                                <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full backdrop-blur-md">
                                     <button
                                         onClick={() => setViewMode('vision')}
-                                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${viewMode === 'vision'
-                                            ? 'bg-brand-indigo text-white shadow-lg shadow-brand-indigo/20'
-                                            : 'text-muted-foreground hover:text-white'
+                                        className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 transition-colors ${viewMode === 'vision'
+                                            ? 'text-white shadow-lg shadow-white/10'
+                                            : 'btn--ghost text-muted-foreground hover:text-white'
                                             }`}
+                                        style={{
+                                            backgroundColor: viewMode === 'vision' ? currentTheme.colors.primary : 'transparent',
+                                            borderColor: viewMode === 'vision' ? currentTheme.colors.primary : 'transparent'
+                                        }}
                                     >
                                         <Sparkles className="w-4 h-4" />
-                                        Vision
+                                        <span className="hidden sm:inline">Vision</span>
                                     </button>
                                     <button
                                         onClick={() => setViewMode('timeline')}
-                                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${viewMode === 'timeline'
-                                            ? 'bg-brand-indigo text-white shadow-lg shadow-brand-indigo/20'
-                                            : 'text-muted-foreground hover:text-white'
+                                        className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 transition-colors ${viewMode === 'timeline'
+                                            ? 'text-white shadow-lg shadow-white/10'
+                                            : 'btn--ghost text-muted-foreground hover:text-white'
                                             }`}
+                                        style={{
+                                            backgroundColor: viewMode === 'timeline' ? currentTheme.colors.primary : 'transparent',
+                                            borderColor: viewMode === 'timeline' ? currentTheme.colors.primary : 'transparent'
+                                        }}
                                     >
                                         <LayoutList className="w-4 h-4" />
-                                        Timeline
+                                        <span className="hidden sm:inline">Timeline</span>
                                     </button>
                                     <button
                                         onClick={() => setViewMode('calendar')}
-                                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${viewMode === 'calendar'
-                                            ? 'bg-brand-indigo text-white shadow-lg shadow-brand-indigo/20'
-                                            : 'text-muted-foreground hover:text-white'
+                                        className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 transition-colors ${viewMode === 'calendar'
+                                            ? 'text-white shadow-lg shadow-white/10'
+                                            : 'btn--ghost text-muted-foreground hover:text-white'
                                             }`}
+                                        style={{
+                                            backgroundColor: viewMode === 'calendar' ? currentTheme.colors.primary : 'transparent',
+                                            borderColor: viewMode === 'calendar' ? currentTheme.colors.primary : 'transparent'
+                                        }}
                                     >
                                         <CalendarIcon className="w-4 h-4" />
-                                        Calendar
+                                        <span className="hidden sm:inline">Calendar</span>
                                     </button>
                                 </div>
 
-                                {/* Actions Container */}
-                                <div className="flex flex-wrap justify-center items-center gap-2 p-1 bg-white/5 rounded-full w-fit backdrop-blur-md">
+                                {/* Action Buttons - Separate group for mobile */}
+                                <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full backdrop-blur-md">
                                     {onTogglePublic && (
                                         <button
                                             onClick={onTogglePublic}
-                                            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all hover:scale-105 active:scale-95 ${isPublic
-                                                ? 'text-green-300 hover:text-green-200'
-                                                : 'text-muted-foreground hover:text-white'
+                                            className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 ${isPublic
+                                                ? 'btn--ghost hover:opacity-80'
+                                                : 'btn--ghost text-muted-foreground hover:text-white'
                                                 }`}
+                                            style={{ color: isPublic ? currentTheme.colors.accent : undefined }}
+                                            title={isPublic ? "Public" : "Private"}
                                         >
-                                            {isPublic ? (
-                                                <>
-                                                    <Globe className="w-4 h-4" />
-                                                    Public
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Lock className="w-4 h-4" />
-                                                    Private
-                                                </>
-                                            )}
+                                            {isPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                            <span className="hidden sm:inline">{isPublic ? 'Public' : 'Private'}</span>
                                         </button>
                                     )}
                                     <button
@@ -382,10 +405,12 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                                                 alert('Vision summary copied to clipboard!');
                                             }
                                         }}
-                                        className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all text-brand-purple hover:text-brand-purple/80 hover:scale-105 active:scale-95"
+                                        className="btn btn--ghost btn--sm gap-1.5 min-h-[44px] sm:min-h-0 hover:opacity-80"
+                                        style={{ color: currentTheme.colors.accent }}
+                                        title="Share"
                                     >
                                         <Share2 className="w-4 h-4" />
-                                        Share
+                                        <span className="hidden sm:inline">Share</span>
                                     </button>
                                     <button
                                         onClick={async () => {
@@ -403,257 +428,433 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                                             }
                                         }}
                                         disabled={isSyncing}
-                                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${isSyncing
-                                            ? 'text-muted-foreground opacity-50 cursor-not-allowed'
-                                            : 'text-brand-indigo hover:text-brand-indigo/80 hover:scale-105 active:scale-95'}`}
+                                        className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 ${isSyncing
+                                            ? 'btn--ghost text-muted-foreground opacity-50 cursor-not-allowed'
+                                            : 'btn--ghost hover:opacity-80'}`}
+                                        style={{ color: isSyncing ? undefined : currentTheme.colors.accent }}
+                                        title="Sync to Calendar"
                                     >
                                         <CalendarIcon className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
-                                        {isSyncing ? 'Syncing...' : 'Sync to Calendar'}
+                                        <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
                                     </button>
+                                    <Tooltip id="export-plan" content="Export Plan" position="bottom">
+                                        <button
+                                            onClick={() => setShowExportModal(true)}
+                                            className="btn btn--ghost btn--sm gap-1.5 min-h-[44px] sm:min-h-0 hover:opacity-80"
+                                            style={{ color: currentTheme.colors.accent }}
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Export</span>
+                                        </button>
+                                    </Tooltip>
+                                    {/* Pause/Resume Button */}
+                                    {(onPause || onResume) && !isReadOnly && (
+                                        <button
+                                            onClick={() => setShowPauseModal(true)}
+                                            className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 ${isPaused
+                                                ? 'btn--ghost text-blue-400 hover:text-blue-300'
+                                                : 'btn--ghost text-slate-400 hover:text-slate-300'
+                                                }`}
+                                            title={isPaused ? "Resume Goal" : "Pause Goal"}
+                                        >
+                                            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                                            <span className="hidden sm:inline">{isPaused ? 'Resume' : 'Pause'}</span>
+                                        </button>
+                                    )}
+                                    {onDelete && (
+                                        <button
+                                            onClick={onDelete}
+                                            className="btn btn--ghost btn--sm gap-1.5 min-h-[44px] sm:min-h-0 hover:opacity-80 text-red-400 hover:text-red-300"
+                                            title="Delete Vision"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Delete</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* Paused Banner */}
+                            {isPaused && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex items-center justify-center gap-3 p-3 bg-blue-500/20 border border-blue-400/30 rounded-xl backdrop-blur-sm"
+                                >
+                                    <Pause className="w-4 h-4 text-blue-300" />
+                                    <span className="text-blue-200 text-sm font-medium">
+                                        Goal paused{pauseReason ? `: ${pauseReason}` : ''}
+                                    </span>
+                                    <button
+                                        onClick={() => setShowPauseModal(true)}
+                                        className="text-xs text-blue-300 hover:text-blue-100 underline"
+                                    >
+                                        Resume
+                                    </button>
+                                </motion.div>
+                            )}
+
+                            {/* Goal Insights - Show if there are date changes */}
+                            {!isReadOnly && (
+                                <GoalInsights
+                                    plan={plan}
+                                    pauseHistory={pauseHistory}
+                                    goalCreatedAt={goalCreatedAt}
+                                    compact={false}
+                                    className="mt-2"
+                                />
+                            )}
+
                         </div>
 
-                        {/* View Toggle & Content */}
-                        <div className="space-y-8">
-                            {/* Wrapper for AnimatePresence to ensure layout stability */}
-                            <div className="relative min-h-[600px]">
-                                <AnimatePresence mode="wait">
-                                    {viewMode === 'vision' ? (
-                                        <motion.div
-                                            key="vision"
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -20 }}
-                                            transition={{ duration: 0.5 }}
-                                            className="relative mx-auto w-full max-w-xl flex flex-col items-center gap-8"
-                                        >
-                                            {/* Vision Board Card (Image Only) */}
-                                            <div className="relative w-full max-w-[44rem] aspect-square rounded-[3rem] overflow-hidden border-4 border-white/20 shadow-2xl group flex-shrink-0 bg-black/40">
-                                                {/* AI Generated Image */}
+                        {/* View Content - Fills remaining space */}
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            <AnimatePresence mode="wait">
+                                {viewMode === 'vision' ? (
+                                    <motion.div
+                                        key="vision"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        transition={{ duration: 0.4 }}
+                                        className="w-full h-full"
+                                    >
+                                        {/* Editorial Card Container - Fits viewport */}
+                                        <div className="bg-white/5 backdrop-blur-xl rounded-[1.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-full border border-white/10">
+
+                                            {/* Left Column: Image (smaller to give more room to content) */}
+                                            <div className="w-full md:w-2/5 relative bg-black/40 min-h-[180px] md:min-h-0 shrink-0">
                                                 <img
-                                                    key={imgSeed}
                                                     src={displayImage}
                                                     alt="Vision Visualization"
-                                                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-1000"
+                                                    className="w-full h-full object-cover absolute inset-0 transform hover:scale-105 transition-transform duration-[2s] ease-in-out"
                                                 />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 md:opacity-30" />
                                             </div>
 
-                                            {/* Content Below Image (Profile Style) */}
-                                            <div
-                                                className="flex flex-col items-center text-center space-y-6 mx-auto w-full max-w-[44rem]"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <div className="text-brand-indigo text-xs font-bold uppercase tracking-wider">
-                                                        {showDynamicImage ? "AI Vision" : "Legacy Artifact"}
-                                                    </div>
+                                            {/* Right Column: Content (larger for full text + resources) */}
+                                            <div className="w-full md:w-3/5 p-5 md:p-6 flex flex-col items-start text-left relative overflow-y-auto">
+
+                                                {/* Badge + Title Row */}
+                                                <div className="flex items-start gap-3 mb-2">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border shrink-0 mt-1 ${showDynamicImage
+                                                        ? 'bg-brand-indigo/20 border-brand-indigo/50 text-brand-indigo'
+                                                        : 'bg-slate-700/30 border-slate-600 text-slate-400'
+                                                        }`}>
+                                                        {showDynamicImage ? "AI" : "Legacy"}
+                                                    </span>
+                                                    <h2 className="text-xl md:text-2xl font-bold font-sans text-white leading-tight drop-shadow-sm">
+                                                        {plan.title}
+                                                    </h2>
                                                 </div>
 
-                                                <h2 className="text-5xl md:text-6xl font-display font-bold text-white leading-tight drop-shadow-sm break-words w-full">
-                                                    {plan.title}
-                                                </h2>
-
+                                                {/* Description - Full text */}
                                                 {plan.visionaryDescription && (
-                                                    <p className="text-xl md:text-2xl text-slate-300 font-medium italic break-words leading-relaxed w-full">
+                                                    <p className="text-sm text-slate-300 font-medium italic leading-relaxed mb-3 opacity-90">
                                                         "{plan.visionaryDescription}"
                                                     </p>
                                                 )}
 
-                                                {/* Action Buttons */}
-                                                <div className="flex flex-wrap justify-center gap-5 mt-6 w-full">
-                                                    <button
-                                                        onClick={() => setImgSeed(prev => prev + 1)}
-                                                        className="px-7 py-3 rounded-full bg-white text-black text-base font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors shadow-lg shadow-white/10 hover:scale-105 active:scale-95 duration-200"
-                                                    >
-                                                        <Sparkles className="w-5 h-5" />
-                                                        Remix
-                                                    </button>
+                                                {/* Resources - Compact inline list */}
+                                                {plan.sources && plan.sources.length > 0 && (
+                                                    <div className="w-full mb-3">
+                                                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-white/50 mb-2">Resources</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {plan.sources.slice(0, 4).map((source, idx) => (
+                                                                <a
+                                                                    key={idx}
+                                                                    href={source.url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 hover:text-white transition-colors truncate max-w-[180px]"
+                                                                >
+                                                                    <ExternalLink className="w-3 h-3 shrink-0" />
+                                                                    <span className="truncate">{source.title}</span>
+                                                                </a>
+                                                            ))}
+                                                            {plan.sources.length > 4 && (
+                                                                <span className="text-xs text-white/40 self-center">+{plan.sources.length - 4} more</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
 
-                                                    {onDelete && (
+                                                {/* Action Buttons */}
+                                                {onDelete && (
+                                                    <div className="mt-auto pt-3 w-full flex justify-start gap-3 border-t border-white/10">
                                                         <button
                                                             onClick={onDelete}
-                                                            className="px-7 py-3 rounded-full bg-red-500/10 text-red-500 text-base font-bold flex items-center gap-2 hover:bg-red-500/20 transition-colors border border-red-500/20 hover:scale-105 active:scale-95 duration-200"
+                                                            className="btn btn--destructive btn--sm gap-2 opacity-80 hover:opacity-100"
                                                         >
-                                                            <Trash2 className="w-5 h-5" />
+                                                            <Trash2 className="w-4 h-4" />
                                                             Delete
                                                         </button>
-                                                    )}
-                                                </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </motion.div>
-                                    ) : viewMode === 'timeline' ? (
-                                        <motion.div
-                                            key="timeline"
-                                            initial={{ opacity: 0, x: 20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: -20 }}
-                                            transition={{ duration: 0.3 }}
-                                            className="relative"
-                                        >
-                                            <div className={`relative p-8 rounded-3xl backdrop-blur-sm ${themeId === 'moon' ? 'bg-slate-900/50' : 'bg-white/40'}`}>
-                                                <div className="absolute top-0 bottom-0 left-8 w-px bg-gradient-to-b from-transparent via-brand-purple/50 to-transparent" />
-                                                <div className="space-y-12 relative">
-                                                    {plan.timeline.map((item, milestoneIndex) => {
-                                                        // Calculate milestone completion
-                                                        const milestoneSteps = item.steps?.length || 0;
-                                                        const completedMilestoneSteps = item.steps?.filter((_, stepIdx) =>
-                                                            isStepCompleted(milestoneIndex, stepIdx)
-                                                        ).length || 0;
-                                                        const isMilestoneComplete = milestoneSteps > 0 && completedMilestoneSteps === milestoneSteps;
+                                        </div>
+                                    </motion.div>
+                                ) : viewMode === 'timeline' ? (
+                                    <motion.div
+                                        key="timeline"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="w-full"
+                                    >
+                                        {/* Galaxy Grid Layout with Stars */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-12 pb-12 pt-4 px-4">
+                                            {plan.timeline.map((item, milestoneIndex) => {
+                                                // Calculate milestone completion
+                                                const milestoneSteps = item.steps?.length || 0;
+                                                const completedMilestoneSteps = item.steps?.filter((_, stepIdx) =>
+                                                    isStepCompleted(milestoneIndex, stepIdx)
+                                                ).length || 0;
+                                                const isMilestoneComplete = milestoneSteps > 0 && completedMilestoneSteps === milestoneSteps;
+                                                const progress = milestoneSteps > 0 ? (completedMilestoneSteps / milestoneSteps) * 100 : 0;
 
-                                                        // Calculate if this is the active milestone (first incomplete one)
-                                                        let isActive = false;
-                                                        if (!isMilestoneComplete) {
-                                                            const prevMilestoneComplete = milestoneIndex === 0 ||
-                                                                (plan.timeline[milestoneIndex - 1].steps?.every((_, idx) => isStepCompleted(milestoneIndex - 1, idx)) ?? true);
-                                                            isActive = prevMilestoneComplete;
-                                                        }
+                                                // Calculate if this is the active milestone (first incomplete one)
+                                                let isActive = false;
+                                                if (!isMilestoneComplete) {
+                                                    const prevMilestoneComplete = milestoneIndex === 0 ||
+                                                        (plan.timeline[milestoneIndex - 1].steps?.every((_, idx) => isStepCompleted(milestoneIndex - 1, idx)) ?? true);
+                                                    isActive = prevMilestoneComplete;
+                                                }
 
-                                                        return (
+                                                // Determine styles based on theme
+                                                const getThemeStyles = () => {
+                                                    const themeId = currentTheme?.id || 'moon';
+
+                                                    // Brain Theme - Neurons
+                                                    if (themeId === 'brain') {
+                                                        return {
+                                                            shape: '60% 40% 30% 70% / 60% 30% 70% 40%', // Neuron blob
+                                                            gradient: isMilestoneComplete
+                                                                ? 'radial-gradient(circle at 30% 30%, #2dd4bf, #0f766e)'
+                                                                : isActive
+                                                                    ? 'radial-gradient(circle at 30% 30%, #c084fc, #7e22ce)'
+                                                                    : 'radial-gradient(circle at 30% 30%, #e2e8f0, #64748b)',
+                                                            shadow: isMilestoneComplete
+                                                                ? '0 0 40px rgba(45,212,191,0.6), inset 0 0 20px rgba(255,255,255,0.4)'
+                                                                : isActive
+                                                                    ? '0 0 50px rgba(168,85,247,0.6), inset 0 0 20px rgba(255,255,255,0.4)'
+                                                                    : '0 0 20px rgba(255,255,255,0.1)',
+                                                            texture: false,
+                                                            planetOverlay: false
+                                                        };
+                                                    }
+
+                                                    // Tree Theme - Seeds/Eggs
+                                                    if (themeId === 'tree') {
+                                                        return {
+                                                            shape: '50% 50% 50% 50% / 60% 60% 40% 40%', // Seed/Egg
+                                                            gradient: isMilestoneComplete
+                                                                ? 'radial-gradient(circle at 40% 40%, #34d399, #059669)' // Emerald
+                                                                : isActive
+                                                                    ? 'radial-gradient(circle at 40% 40%, #fbbf24, #b45309)' // Amber
+                                                                    : 'radial-gradient(circle at 40% 40%, #94a3b8, #475569)', // Slate
+                                                            shadow: isMilestoneComplete
+                                                                ? 'inset 5px 5px 10px rgba(255,255,255,0.3), 0 10px 20px rgba(0,0,0,0.3)'
+                                                                : isActive
+                                                                    ? 'inset 5px 5px 10px rgba(255,255,255,0.3), 0 10px 25px rgba(0,0,0,0.4)'
+                                                                    : 'inset 2px 2px 5px rgba(255,255,255,0.1)',
+                                                            texture: true, // Wood grain needed
+                                                            planetOverlay: false
+                                                        };
+                                                    }
+
+                                                    // Default: Cosmic / Moon (Planets)
+                                                    return {
+                                                        shape: '50%', // Perfect Circle
+                                                        gradient: isMilestoneComplete
+                                                            ? 'radial-gradient(circle at 30% 30%, #5eead4, #0d9488 40%, #115e59 80%, #042f2e 100%)'
+                                                            : isActive
+                                                                ? 'radial-gradient(circle at 35% 35%, #c4b5fd, #8b5cf6 40%, #5b21b6 80%, #2e1065 100%)'
+                                                                : 'radial-gradient(circle at 30% 30%, #e2e8f0, #94a3b8 40%, #475569 80%, #0f172a 100%)',
+                                                        shadow: isMilestoneComplete
+                                                            ? 'inset -10px -10px 30px rgba(0,0,0,0.5), 0 0 30px rgba(45,212,191,0.3)'
+                                                            : isActive
+                                                                ? 'inset -10px -10px 40px rgba(0,0,0,0.6), 0 0 40px rgba(139,92,246,0.4)'
+                                                                : 'inset -8px -8px 20px rgba(0,0,0,0.7)',
+                                                        planetOverlay: true,
+                                                        texture: false
+                                                    };
+                                                };
+
+                                                const themeStyles = getThemeStyles();
+                                                const currentThemeId = currentTheme?.id || 'moon';
+
+                                                return (
+                                                    <motion.div
+                                                        key={milestoneIndex}
+                                                        initial={{ opacity: 0, scale: 0.8 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        transition={{ delay: milestoneIndex * 0.1, duration: 0.6, type: 'spring' }}
+                                                        className="flex flex-col items-center group relative"
+                                                        style={{ zIndex: isActive ? 10 : 0 }}
+                                                    >
+                                                        {/* Floating Label (Date) - Above */}
+                                                        <motion.div
+                                                            className="mb-3 opacity-60 group-hover:opacity-100 transition-opacity"
+                                                            initial={{ y: 10, opacity: 0 }}
+                                                            animate={{ y: 0, opacity: 0.6 }}
+                                                        >
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-200">
+                                                                {item.date}
+                                                            </span>
+                                                        </motion.div>
+
+                                                        {/* The Theme-Aware Node */}
+                                                        <div
+                                                            className="relative cursor-pointer"
+                                                            onClick={() => {
+                                                                setSelectedMilestone(item);
+                                                                setSelectedMilestoneIndex(milestoneIndex);
+                                                            }}
+                                                        >
+                                                            {/* Main Shape Graphic */}
                                                             <motion.div
-                                                                key={milestoneIndex}
-                                                                initial={{ opacity: 0, x: -20 }}
-                                                                whileInView={{ opacity: 1, x: 0 }}
-                                                                viewport={{ once: true }}
-                                                                transition={{ delay: milestoneIndex * 0.1 }}
-                                                                className={`relative pl-12 group ${isActive ? 'opacity-100' : 'opacity-70 hover:opacity-100 transition-opacity'}`}
+                                                                whileHover={{ scale: 1.1, rotate: currentThemeId === 'brain' ? 10 : 5 }}
+                                                                whileTap={{ scale: 0.95 }}
+                                                                className={`w-24 h-24 md:w-32 md:h-32 transition-all duration-700 ease-out relative overflow-hidden`}
+                                                                style={{
+                                                                    borderRadius: themeStyles.shape,
+                                                                    background: themeStyles.gradient,
+                                                                    boxShadow: themeStyles.shadow,
+                                                                    // Breathing animation for brain theme
+                                                                    ...(currentThemeId === 'brain' && isActive ? {
+                                                                        animation: 'pulse 3s infinite'
+                                                                    } : {})
+                                                                }}
                                                             >
-                                                                {/* Milestone Dot */}
-                                                                <div className={`absolute left-[29px] top-0 w-3.5 h-3.5 rounded-full border-2 transform -translate-x-1/2 transition-all duration-500 z-10 
-                                                    ${isMilestoneComplete
-                                                                        ? 'bg-brand-teal border-brand-teal shadow-[0_0_10px_rgba(45,212,191,0.5)] scale-110'
-                                                                        : isActive
-                                                                            ? 'bg-brand-purple border-white shadow-[0_0_15px_rgba(139,92,246,0.6)] animate-pulse scale-125'
-                                                                            : 'bg-slate-800 border-slate-600'}`}
+                                                                {/* Internal Texture/Overlays */}
+
+                                                                {/* Noise Filter (Universal texture) */}
+                                                                <div className="absolute inset-0 opacity-40 mix-blend-overlay"
+                                                                    style={{
+                                                                        backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.5\'/%3E%3C/svg%3E")',
+                                                                        filter: 'contrast(120%) brightness(110%)'
+                                                                    }}
                                                                 />
 
-                                                                {/* Content Card */}
-                                                                {/* Content Card */}
-                                                                <div
-                                                                    className="relative overflow-hidden rounded-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group-hover:shadow-lg group-hover:shadow-brand-purple/5"
-                                                                    onClick={() => {
-                                                                        setSelectedMilestone(item);
-                                                                        setSelectedMilestoneIndex(milestoneIndex);
-                                                                    }}
-                                                                >
-                                                                    <MilestoneContainer>
-                                                                        <div className={`relative p-5 md:p-6 transition-colors rounded-2xl ${themeId === 'tree' ? '' : 'bg-transparent'}`}>
-                                                                            <div className="flex flex-col gap-3 items-center text-center">
-                                                                                {/* Title Row */}
-                                                                                <div className="flex flex-col items-center justify-center text-center gap-2">
-                                                                                    <h4 className={`text-lg md:text-xl font-bold font-display leading-tight ${isMilestoneComplete ? 'text-brand-teal line-through opacity-70' : 'text-white'
-                                                                                        }`}>
-                                                                                        {item.milestone}
-                                                                                    </h4>
-                                                                                    {isMilestoneComplete && (
-                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-teal bg-brand-teal/10 px-2 py-1 rounded-full">
-                                                                                            Completed
-                                                                                        </span>
-                                                                                    )}
-                                                                                    {isActive && !isMilestoneComplete && (
-                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-purple bg-brand-purple/10 px-2 py-1 rounded-full animate-pulse">
-                                                                                            In Progress
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
+                                                                {/* Specific Overlays */}
+                                                                {/* Ring for Active Planet */}
+                                                                {themeStyles.planetOverlay && isActive && !isMilestoneComplete && (
+                                                                    <div className="absolute inset-[-10%] border-[6px] border-white/10 rounded-full skew-x-12 skew-y-12 scale-110 blur-[1px]" />
+                                                                )}
 
-                                                                                {/* Date Badge - Minimalist for spheres */}
-                                                                                <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-0.5 rounded-full ${themeId === 'tree' || themeId === 'brain' || themeId === 'space' ? 'text-white/60' : 'text-cyan-200/80'}`}>
-                                                                                    {item.date}
-                                                                                </span>
+                                                                {/* Tree Texture */}
+                                                                {themeStyles.texture && currentThemeId === 'tree' && (
+                                                                    <div className="absolute inset-0 opacity-30 mix-blend-soft-light bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+                                                                )}
 
-                                                                                {/* Description - Readable, High Contrast, Centered */}
-                                                                                <div className="flex-1 w-full flex items-center justify-center overflow-y-auto no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                                                                    <p className="text-[11px] md:text-xs text-center text-slate-100 font-medium leading-relaxed max-w-[90%] drop-shadow-md tracking-wide px-2">
-                                                                                        {item.description}
-                                                                                    </p>
-                                                                                </div>
-
-                                                                                {/* Interaction Hint */}
-                                                                                <div className="flex-shrink-0 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-bold text-white/90 uppercase tracking-[0.2em] drop-shadow-md pb-1">
-                                                                                    Tap to Expand
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </MilestoneContainer>
-                                                                </div>
+                                                                {/* Shadow side overlay */}
+                                                                <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/40 pointer-events-none"
+                                                                    style={{ borderRadius: 'inherit' }}
+                                                                />
                                                             </motion.div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ) : (
-                                        <motion.div
-                                            key="calendar"
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.95 }}
-                                            transition={{ duration: 0.4 }}
-                                        >
-                                            <CalendarView
-                                                plan={plan}
-                                                onSelectEvent={(milestone, index) => {
-                                                    setSelectedMilestone(milestone);
-                                                    setSelectedMilestoneIndex(index);
-                                                }}
-                                            />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
+
+                                                            {/* Status Indicator Floating Near Node */}
+                                                            <div className="absolute -bottom-2 -right-2 bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-full px-2.5 py-1 shadow-lg z-20">
+                                                                {isMilestoneComplete ? (
+                                                                    <span className="text-teal-400 font-bold text-xs flex items-center gap-1">
+                                                                        <span className="text-[10px]">✓</span> Done
+                                                                    </span>
+                                                                ) : isActive ? (
+                                                                    <span className={`${currentThemeId === 'tree' ? 'text-amber-400' : 'text-purple-400'} font-bold text-xs animate-pulse`}>
+                                                                        Active
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 text-[10px] font-medium">
+                                                                        #{milestoneIndex + 1}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Floating Details (Below) */}
+                                                        <div className="mt-6 text-center z-10 max-w-[180px]">
+                                                            <h4 className={`text-sm md:text-base font-bold font-display leading-tight mb-2 transition-colors duration-300 ${isMilestoneComplete ? 'text-teal-100 text-shadow-teal' : isActive ? 'text-purple-100 text-shadow-purple' : 'text-slate-400'
+                                                                }`}>
+                                                                {item.milestone}
+                                                            </h4>
+
+                                                            {/* Progress or Description */}
+                                                            {/* Only show progress bar if active or complete, otherwise subtle description */}
+                                                            {(isActive || isMilestoneComplete) ? (
+                                                                <div className="w-24 mx-auto space-y-1.5">
+                                                                    <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
+                                                                        <motion.div
+                                                                            initial={{ width: 0 }}
+                                                                            animate={{ width: `${progress}%` }}
+                                                                            transition={{ duration: 1, delay: 0.5 }}
+                                                                            className={`h-full ${isMilestoneComplete
+                                                                                ? 'bg-teal-400'
+                                                                                : currentThemeId === 'tree' ? 'bg-amber-500' : 'bg-purple-500'
+                                                                                }`}
+                                                                        />
+                                                                    </div>
+                                                                    <p className="text-[9px] text-blue-200/50 uppercase tracking-widest">
+                                                                        {completedMilestoneSteps}/{milestoneSteps} Steps
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed px-2">
+                                                                    {item.description}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Connector Line to Next Node (if not last) */}
+                                                        {milestoneIndex < plan.timeline.length - 1 && (
+                                                            <div className={`hidden lg:block absolute top-[4rem] -right-[50%] w-[80%] h-[1px] -z-10 
+                                                                ${isMilestoneComplete
+                                                                    ? 'bg-gradient-to-r from-teal-500/30 to-slate-700/30'
+                                                                    : 'bg-gradient-to-r from-slate-700/30 to-slate-800/30'
+                                                                }`}
+                                                            />
+                                                        )}
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="calendar"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        transition={{ duration: 0.4 }}
+                                    >
+                                        <CalendarView
+                                            plan={plan}
+                                            onSelectEvent={(milestone, index) => {
+                                                setSelectedMilestone(milestone);
+                                                setSelectedMilestoneIndex(index);
+                                            }}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-
-                        {/* Resources */}
-                        {plan.sources.length > 0 && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                className="mt-20 w-full max-w-[44rem] mx-auto"
-                            >
-                                <div className="flex flex-col items-center gap-6 mb-10 text-center">
-                                    <h3 className="text-3xl font-bold font-display text-white/90">Curated Resources</h3>
-                                </div>
-
-                                <div className="flex flex-col gap-4">
-                                    {plan.sources.map((source, idx) => (
-                                        <a
-                                            key={idx}
-                                            href={source.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center justify-between p-5 rounded-3xl bg-white/5 hover:bg-white/10 transition-all group hover:scale-[1.01]"
-                                        >
-                                            <div className="flex-1 min-w-0 pr-5 text-left">
-                                                <h4 className="font-bold text-slate-100 text-lg truncate mb-0.5 group-hover:text-white transition-colors">
-                                                    {source.title}
-                                                </h4>
-                                                <p className="text-sm text-slate-400 truncate opacity-70 group-hover:opacity-100 transition-opacity">
-                                                    {(() => { try { return new URL(source.url).hostname; } catch { return source.url; } })()}
-                                                </p>
-                                            </div>
-                                            <ExternalLink className="w-6 h-6 text-slate-400 group-hover:text-brand-purple transition-colors flex-shrink-0" />
-                                        </a>
-                                    ))}
-                                </div>
-                            </motion.div>
-                        )}
-
-
-                        {/* Detail Modal */}
-                        <MilestoneModal
-                            isOpen={!!selectedMilestone}
-                            onClose={() => setSelectedMilestone(null)}
-                            milestone={selectedMilestone}
-                            milestoneIndex={selectedMilestoneIndex}
-                            completedSteps={completedSteps}
-                            onStepComplete={handleStepComplete}
-                            goalId={goalId}
-                            goalTitle={plan.title}
-                        />
                     </div>
+
+                    {/* Detail Modal */}
+                    <MilestoneModal
+                        isOpen={!!selectedMilestone}
+                        onClose={() => setSelectedMilestone(null)}
+                        milestone={selectedMilestone}
+                        milestoneIndex={selectedMilestoneIndex}
+                        completedSteps={completedSteps}
+                        onStepComplete={handleStepComplete}
+                        onDateChange={onMilestoneDateChange}
+                        onStepsChange={onMilestoneStepsChange}
+                        goalId={goalId}
+                        goalTitle={plan.title}
+                        isReadOnly={isReadOnly}
+                    />
 
                     {/* The Guide AI Assistant - outside main content for fixed positioning */}
                     < TheGuide goal={plan.title} plan={plan} context={{ currentLocation: 'planet' }} onUpdatePlan={onUpdatePlan} />
@@ -667,6 +868,36 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({ plan, visionImage, onGoH
                             />
                         )
                     }
+
+                    {/* Export Modal */}
+                    <ExportModal
+                        isOpen={showExportModal}
+                        onClose={() => setShowExportModal(false)}
+                        plan={plan}
+                        goalTitle={plan.title}
+                        exportRef={exportRef as React.RefObject<HTMLElement>}
+                    />
+
+                    {/* Pause Goal Modal */}
+                    {(onPause || onResume) && (
+                        <PauseGoalModal
+                            isOpen={showPauseModal}
+                            onClose={() => setShowPauseModal(false)}
+                            goalTitle={plan.title}
+                            isPaused={isPaused}
+                            pausedAt={pausedAt}
+                            pauseReason={pauseReason}
+                            pauseHistory={pauseHistory}
+                            onPause={(reason, category) => {
+                                onPause?.(reason, category);
+                                setShowPauseModal(false);
+                            }}
+                            onResume={() => {
+                                onResume?.();
+                                setShowPauseModal(false);
+                            }}
+                        />
+                    )}
                 </div >
             </div >
         </ErrorBoundary >

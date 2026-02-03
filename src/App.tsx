@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { TooltipProvider } from './components/TooltipSystem';
 import { LandingPage } from './pages/LandingPage';
 import { Dashboard } from './pages/Dashboard';
 import { PlanDetailsPage } from './pages/PlanDetailsPage';
@@ -31,43 +32,45 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <ToastProvider>
-            <MessagingProvider>
-              <Router>
-                <MessagingDrawer />
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <PrivateRoute>
-                        <Dashboard />
-                      </PrivateRoute>
-                    }
-                  />
-                  <Route
-                    path="/plan/:id"
-                    element={
-                      <PrivateRoute>
-                        <PlanDetailsPage />
-                      </PrivateRoute>
-                    }
-                  />
-                  <Route
-                    path="/profile"
-                    element={
-                      <PrivateRoute>
-                        <ProfilePage />
-                      </PrivateRoute>
-                    }
-                  />
-                  <Route path="/community" element={<CommunityFeed />} />
-                  <Route path="/demo/community" element={<CommunityFeed demoMode={true} />} />
-                  <Route path="/demo/profile" element={<ProfilePage demoMode={true} />} />
-                  {/* Demo Route for testing */}
-                  <Route path="/demo" element={<Dashboard demoMode={true} />} />
-                </Routes>
-              </Router>
-            </MessagingProvider>
+            <TooltipProvider>
+              <MessagingProvider>
+                <Router>
+                  <MessagingDrawer />
+                  <Routes>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <PrivateRoute>
+                          <Dashboard />
+                        </PrivateRoute>
+                      }
+                    />
+                    <Route
+                      path="/plan/:id"
+                      element={
+                        <PrivateRoute>
+                          <PlanDetailsPage />
+                        </PrivateRoute>
+                      }
+                    />
+                    <Route
+                      path="/profile"
+                      element={
+                        <PrivateRoute>
+                          <ProfilePage />
+                        </PrivateRoute>
+                      }
+                    />
+                    <Route path="/community" element={<CommunityFeed />} />
+                    <Route path="/demo/community" element={<CommunityFeed demoMode={true} />} />
+                    <Route path="/demo/profile" element={<ProfilePage demoMode={true} />} />
+                    {/* Demo Route for testing */}
+                    <Route path="/demo" element={<Dashboard demoMode={true} />} />
+                  </Routes>
+                </Router>
+              </MessagingProvider>
+            </TooltipProvider>
           </ToastProvider>
         </ThemeProvider>
       </AuthProvider>

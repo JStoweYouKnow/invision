@@ -55,8 +55,8 @@ export default {
                 card: "40px", // Design token for large card corners
             },
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
-                display: ['Outfit', 'sans-serif'],
+                sans: ['var(--font-body)', 'system-ui', 'sans-serif'],
+                display: ['var(--font-display)', 'cursive'],
             },
             animation: {
                 'gradient-x': 'gradient-x 15s ease infinite',

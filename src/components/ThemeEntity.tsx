@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { CelestialBody, type CelestialType } from './CelestialBody';
 
 export type NeuralType = 'neuron' | 'node' | 'synapse' | 'brain';
-export type ForestType = 'oak' | 'pine' | 'willow' | 'bonsai';
+export type ForestType = 'oak' | 'pine' | 'willow' | 'bonsai' | 'leaf';
 export type EntityType = CelestialType | NeuralType | ForestType;
 
 interface ThemeEntityProps {
@@ -15,7 +15,7 @@ interface ThemeEntityProps {
 }
 
 const NEURAL_TYPES: NeuralType[] = ['neuron', 'node', 'synapse', 'brain'];
-const FOREST_TYPES: ForestType[] = ['oak', 'pine', 'willow', 'bonsai'];
+const FOREST_TYPES: ForestType[] = ['oak', 'pine', 'willow', 'bonsai', 'leaf'];
 
 // Get entity type based on theme and index
 function getEntityType(themeId: string, index: number): EntityType {
@@ -335,6 +335,27 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                                 transition={{ duration: 2.5, delay: i * 0.8, repeat: Infinity }}
                             />
                         ))}
+                    </svg>
+                );
+            case 'leaf':
+                // Simple leaf shape for Yggdrasil visualization
+                return (
+                    <svg viewBox="0 0 48 48" className="w-full h-full">
+                        <defs>
+                            <linearGradient id={`leafGrad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor={colors.primary} />
+                                <stop offset="100%" stopColor={colors.accent} />
+                            </linearGradient>
+                        </defs>
+                        <motion.path
+                            d="M 24 8 Q 40 24 24 40 Q 8 24 24 8 Z"
+                            fill={`url(#leafGrad-${index})`}
+                            stroke={colors.glow}
+                            strokeWidth="1"
+                            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+                            transition={{ duration: 4, delay: index * 0.2, repeat: Infinity }}
+                        />
+                        <path d="M 24 8 Q 24 24 24 32" stroke={colors.secondary} strokeWidth="1" opacity="0.6" />
                     </svg>
                 );
         }

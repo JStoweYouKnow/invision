@@ -8,16 +8,87 @@ export interface User {
     following?: string[];
 }
 
+// Pause history for life disruptions
+export interface PauseRecord {
+    id: string;
+    pausedAt: number;          // timestamp when paused
+    resumedAt?: number;        // timestamp when resumed (undefined if still paused)
+    reason: string;
+    reasonCategory: 'health' | 'family' | 'work' | 'travel' | 'mental' | 'other';
+    daysShifted?: number;      // how much all dates moved on resume
+}
+
+// Goal insights for pattern detection
+export interface GoalInsights {
+    totalDateChanges: number;
+    totalExtensions: number;
+    totalReschedules: number;
+    averageExtensionDays: number;
+    mostCommonChangeReason: DateChangeReason | null;
+    weekOfMostChanges: number | null;        // week number when most changes happen
+    completionRateAfterExtension: number;    // 0-1
+    streakWithoutChanges: number;            // days since last change
+    pauseCount: number;
+    totalPauseDays: number;
+}
+
 export interface Goal {
     id: string;
     userId: string;
     title: string;
     description: string;
     originalInput: string; // The text, URL, or image prompt
-    status: 'draft' | 'active' | 'completed' | 'archived';
+    status: 'draft' | 'active' | 'completed' | 'archived' | 'paused';
     imageUrl?: string;
     createdAt: number;
     deadline?: number;
+    // Pause functionality
+    pausedAt?: number;           // timestamp when currently paused
+    pauseReason?: string;
+    pauseReasonCategory?: 'health' | 'family' | 'work' | 'travel' | 'mental' | 'other';
+    pauseHistory?: PauseRecord[];
+}
+
+// Date change tracking for accountability
+export type DateChangeType = 'extend' | 'reschedule' | 'pause_resume';
+
+export type DateChangeReason =
+    | 'life_event'
+    | 'underestimated_effort'
+    | 'priorities_shifted'
+    | 'health_issue'
+    | 'work_crisis'
+    | 'other';
+
+export interface DateChange {
+    id: string;
+    previousDate: string;      // YYYY-MM-DD
+    newDate: string;           // YYYY-MM-DD
+    changedAt: number;         // timestamp
+    reason: DateChangeReason;
+    explanation: string;       // user-provided explanation
+    changeType: DateChangeType;
+    daysDiff: number;          // positive = extended, negative = rescheduled earlier
+}
+
+// Step change tracking
+export type StepChangeType = 'add' | 'remove' | 'edit' | 'reorder';
+
+export interface StepChange {
+    id: string;
+    changeType: StepChangeType;
+    changedAt: number;
+    stepIndex: number;
+    previousValue?: {
+        text?: string;
+        date?: string;
+        habit?: string;
+    };
+    newValue?: {
+        text?: string;
+        date?: string;
+        habit?: string;
+    };
 }
 
 export interface Milestone {
@@ -26,6 +97,8 @@ export interface Milestone {
     description?: string;
     date?: number; // Timestamp
     isCompleted: boolean;
+    dateHistory?: DateChange[];  // Track all date modifications
+    stepHistory?: StepChange[];  // Track step modifications
 }
 
 export interface Plan {

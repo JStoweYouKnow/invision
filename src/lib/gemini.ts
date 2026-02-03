@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type Part, type ChatSession } from "@google/generative-ai";
+import { GoogleGenerativeAI, type Part, type ChatSession, SchemaType, type Schema } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
@@ -119,6 +119,123 @@ export interface GeneratedTheme {
     };
 }
 
+// Validation Schemas for Structured Output
+const planSchema: Schema = {
+    type: SchemaType.OBJECT,
+    properties: {
+        title: { type: SchemaType.STRING, description: "A catchy, uplifting title for the journey" },
+        description: { type: SchemaType.STRING, description: "A deep, inspiring multi-sentence overview of the transformation" },
+        visionaryDescription: { type: SchemaType.STRING, description: "A vivid, sensory-rich description of what it feels like to have achieved this goal (sight, sound, feeling). Write this in the present tense as if it has already happened." },
+        timeline: {
+            type: SchemaType.ARRAY,
+            items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    date: { type: SchemaType.STRING, description: "YYYY-MM-DD" },
+                    milestone: { type: SchemaType.STRING, description: "Short punchy title" },
+                    description: { type: SchemaType.STRING, description: "Comprehensive paragraph detailing this phase..." },
+                    whyItMatters: { type: SchemaType.STRING, description: "This phase builds the foundation for..." },
+                    steps: {
+                        type: SchemaType.ARRAY,
+                        items: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                text: { type: SchemaType.STRING, description: "Actionable task description" },
+                                date: { type: SchemaType.STRING, description: "YYYY-MM-DD" },
+                                habit: { type: SchemaType.STRING, description: "Daily/weekly habit suggestion" }
+                            },
+                            required: ["text", "date"]
+                        }
+                    },
+                    resources: {
+                        type: SchemaType.ARRAY,
+                        items: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                title: { type: SchemaType.STRING },
+                                url: { type: SchemaType.STRING },
+                                type: { type: SchemaType.STRING, enum: ["article", "video", "tool"], format: "enum" }
+                            },
+                            required: ["title", "url"]
+                        }
+                    }
+                },
+                required: ["date", "milestone", "description", "steps"]
+            }
+        },
+        sources: {
+            type: SchemaType.ARRAY,
+            items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    title: { type: SchemaType.STRING },
+                    url: { type: SchemaType.STRING }
+                },
+                required: ["title", "url"]
+            }
+        }
+    },
+    required: ["title", "description", "timeline", "sources", "visionaryDescription"]
+};
+
+const themeSchema: Schema = {
+    type: SchemaType.OBJECT,
+    properties: {
+        name: { type: SchemaType.STRING },
+        description: { type: SchemaType.STRING },
+        colors: {
+            type: SchemaType.OBJECT,
+            properties: {
+                background: { type: SchemaType.STRING },
+                foreground: { type: SchemaType.STRING },
+                primary: { type: SchemaType.STRING },
+                secondary: { type: SchemaType.STRING },
+                accent: { type: SchemaType.STRING },
+                glow: { type: SchemaType.STRING }
+            },
+            required: ["background", "foreground", "primary", "secondary", "accent", "glow"]
+        },
+        particles: {
+            type: SchemaType.OBJECT,
+            properties: {
+                count: { type: SchemaType.NUMBER },
+                color: { type: SchemaType.STRING },
+                glowColor: { type: SchemaType.STRING },
+                sizes: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.NUMBER }
+                }
+            },
+            required: ["count", "color", "glowColor", "sizes"]
+        }
+    },
+    required: ["name", "description", "colors", "particles"]
+};
+
+// Model Constants
+const PRIMARY_MODEL = "gemini-3-flash-preview";
+const BACKUP_MODEL = "gemini-3-pro-preview";
+
+// Helper to attempt generation with primary model, then backup
+async function generateWithFallback<T>(
+    operationName: string,
+    action: (modelName: string) => Promise<T>
+): Promise<T> {
+    try {
+        console.log(`[Gemini] Attempting ${operationName} with PRIMARY model: ${PRIMARY_MODEL}`);
+        return await action(PRIMARY_MODEL);
+    } catch (error) {
+        console.warn(`[Gemini] ${operationName} failed with PRIMARY model. Error:`, error);
+        console.log(`[Gemini] Retrying ${operationName} with BACKUP model: ${BACKUP_MODEL}`);
+        try {
+            return await action(BACKUP_MODEL);
+        } catch (backupError) {
+            console.error(`[Gemini] ${operationName} failed with BACKUP model. giving up. Error:`, backupError);
+            throw backupError; // Throw the original or new error? Usually the backup error is strictly what failed last.
+        }
+    }
+}
+
 async function fileToGenerativePart(file: File): Promise<Part> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -145,7 +262,14 @@ async function fileToGenerativePart(file: File): Promise<Part> {
 
 export const geminiService = {
     async generatePlan(goal: string, timeline: string = "flexible", image?: File, isWormhole: boolean = false): Promise<GeneratedPlan> {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        // Use gemini-1.5-flash for structured output support, or gemini-1.5-pro if needed for reasoning
+        const model = genAI.getGenerativeModel({
+            model: "gemini-3-flash-preview",
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: planSchema,
+            }
+        });
 
         const systemPrompt = isWormhole
             ? `
@@ -165,50 +289,23 @@ export const geminiService = {
       ${systemPrompt}
       
       User's Requested Timeline: ${timeline === "flexible" ? "Indefinite / However long it takes (be realistic but ambitious)" : timeline}
-
-      For each milestone in the timeline:
-      1. Provide a "description" that is a substantial, inspiring paragraph (3-5 sentences) explaining the significance and focus of this period.
-      2. Provide a "whyItMatters" sentence explaining the deep internal motivation or shift that happens here.
-      3. Provide a "steps" array containing exactly 3-4 specific, concrete, and actionable tasks.
-         Each step MUST be an object with:
-         - "text": The actionable task description.
-         - "date": A specific target date (YYYY-MM-DD) for this individual step.
-         - "habit": (Optional) A small daily or weekly habit that supports this step (e.g., "Write 200 words daily").
+      
+      Instructions:
+      1. Provide a description that is a substantial, inspiring paragraph (3-5 sentences) explaining the significance and focus of this period.
+      2. Provide a whyItMatters sentence explaining the deep internal motivation or shift that happens here.
+      3. Provide a steps array containing exactly 3-4 specific, concrete, and actionable tasks.
       4. CRITICAL: 
          - The VERY FIRST step of the entire plan MUST have a date within 2-3 days of the current date (${new Date().toISOString().split('T')[0]}) to establish immediate momentum.
          - All subsequent step dates must be chronologically ordered and must be BEFORE or ON the milestone date.
-      5. Include 1-2 "resources" where applicable. IMPORTANT rules for URLs:
+      5. Include 1-2 resources where applicable. IMPORTANT rules for URLs:
          - Use ONLY high-confidence, stable URLs (e.g., main domain pages like 'coursera.org', 'udemy.com', 'wikipedia.org').
          - DO NOT provide deep links to specific articles or course pages unless you are 100% certain they exist and are permanent.
          - If uncertain, provide a Google Search URL query instead (e.g., 'https://www.google.com/search?q=topic').
 
-      Return ONLY a JSON object with this structure:
-      {
-        "title": "A catchy, uplifting title for the journey",
-        "description": "A deep, inspiring multi-sentence overview of the transformation",
-        "visionaryDescription": "A vivid, sensory-rich description of what it feels like to have achieved this goal (sight, sound, feeling). Write this in the present tense as if it has already happened.",
-        "timeline": [
-          { 
-              "date": "YYYY-MM-DD", 
-              "milestone": "Short punchy title", 
-              "description": "Comprehensive paragraph detailing this phase...",
-              "whyItMatters": "This phase builds the foundation for...",
-              "steps": [
-                  { "text": "Actionable step 1", "date": "YYYY-MM-DD", "habit": "Daily practice..." },
-                  { "text": "Actionable step 2", "date": "YYYY-MM-DD" }
-              ],
-              "resources": [ 
-                  { "title": "Specific Course/Tool", "url": "https://...", "type": "article" } 
-              ]
-          }
-        ],
-        "sources": [
-            { "title": "General Authority Topic", "url": "https://example.com" }
-        ]
-      }
+      Important: 
+      - Ensure the total duration of the plan respects the User's Requested Timeline (${timeline}).
+      - The timeline should start from the current date (${new Date().toISOString().split('T')[0]}).
       
-      Important: Ensure the total duration of the plan respects the User's Requested Timeline (${timeline}).
-      The timeline should start from the current date (${new Date().toISOString().split('T')[0]}).
       ${isWormhole ? 'Invent a goal yourself.' : `Goal Input: "${goal}"`}
     `;
 
@@ -217,27 +314,36 @@ export const geminiService = {
             parts.push(await fileToGenerativePart(image));
         }
 
-        const result = await model.generateContent(parts);
-        const response = await result.response;
-        const text = response.text();
-
-        // Clean up markdown code blocks if present
-        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
         try {
-            return JSON.parse(jsonString);
-        } catch {
-            throw new Error("AI response was not valid JSON");
+            const result = await model.generateContent(parts);
+            const response = await result.response;
+
+            // The response text is guaranteed to be JSON matching the schema
+            return JSON.parse(response.text()) as GeneratedPlan;
+        } catch (error) {
+            console.error("Gemini Plan Generation Error:", error);
+            throw new Error("Failed to generate plan. Please try again.");
         }
     },
 
-    async generateVisionImage(goal: string, description?: string): Promise<string> {
+    async generateVisionImage(goal: string, description?: string, profilePhotoDataUri?: string): Promise<string> {
         // Construct a rich prompt for image generation
         const promptCore = description ? description.slice(0, 200) : goal;
-        const fullPrompt = `Generate a cinematic, inspirational image representing: ${promptCore}. Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect ratio`;
+
+        // Build prompt based on whether we have a profile photo
+        let fullPrompt: string;
+        if (profilePhotoDataUri) {
+            fullPrompt = `Generate a cinematic, inspirational image representing: ${promptCore}.
+IMPORTANT: The person in the reference photo should be depicted as the main subject achieving this vision.
+Maintain their facial features, skin tone, and general appearance while placing them in this aspirational scene.
+Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect ratio, the person is clearly visible and recognizable.`;
+        } else {
+            fullPrompt = `Generate a cinematic, inspirational image representing: ${promptCore}. Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect ratio`;
+        }
 
         console.log('[ImageGen] Starting image generation...');
         console.log('[ImageGen] Prompt:', fullPrompt.slice(0, 100) + '...');
+        console.log('[ImageGen] Profile photo included:', !!profilePhotoDataUri);
 
         try {
             // Use Gemini's native image generation model
@@ -249,7 +355,25 @@ export const geminiService = {
                 } as Record<string, unknown> // Type assertion needed for experimental features
             });
 
-            const result = await imageModel.generateContent(fullPrompt);
+            // Build content parts - text prompt + optional reference image
+            const contentParts: (string | Part)[] = [fullPrompt];
+
+            if (profilePhotoDataUri) {
+                // Extract base64 data and mime type from data URI
+                const matches = profilePhotoDataUri.match(/^data:([^;]+);base64,(.+)$/);
+                if (matches) {
+                    const [, mimeType, base64Data] = matches;
+                    contentParts.push({
+                        inlineData: {
+                            mimeType,
+                            data: base64Data
+                        }
+                    });
+                    console.log('[ImageGen] Added profile photo as reference image');
+                }
+            }
+
+            const result = await imageModel.generateContent(contentParts);
             const response = await result.response;
 
             // Check for inline image data in the response
@@ -339,6 +463,8 @@ export const geminiService = {
     },
 
     async startChat(_goal: string, _plan: GeneratedPlan): Promise<ChatSession> {
+        // Chat doesn't yet support structured output enforcement easily for partial turns without complex setup, 
+        // effectively using 1.5 flash for better reasoning match
         const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
         // Initialize chat with context
@@ -373,50 +499,29 @@ export const geminiService = {
     },
 
     async createThemeFromPrompt(prompt: string): Promise<GeneratedTheme> {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        return generateWithFallback("createThemeFromPrompt", async (modelName) => {
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: themeSchema
+                }
+            });
 
-        const systemPrompt = `
+            const systemPrompt = `
         You are a master UI/UX designer and color theorist.
         Your task is to create a beautiful, cohesive color theme for a vision board application based on the user's description.
         The theme should be visually stunning, with good contrast and harmony.
-
-        Return ONLY a JSON object with this EXACT structure (no markdown, no other text):
-        {
-            "name": "Creative Theme Name",
-            "description": "Brief description of the vibe",
-            "colors": {
-                "background": "#hex_code (dark/deep color for bg)",
-                "foreground": "#hex_code (light color for text)",
-                "primary": "#hex_code (main brand color)",
-                "secondary": "#hex_code (supporting color)",
-                "accent": "#hex_code (pop color for highlights)",
-                "glow": "rgba(r, g, b, 0.5) (matching glow color)"
-            },
-            "particles": {
-                "count": number (20-100),
-                "color": "#hex_code (particle color)",
-                "glowColor": "rgba(r, g, b, 0.6) (particle glow)",
-                "sizes": [small, medium, large] (integers, e.g. [2, 4, 6])
-            }
-        }
         `;
 
-        const result = await model.generateContent([
-            systemPrompt,
-            `User Prompt: "${prompt}"`
-        ]);
+            const result = await model.generateContent([
+                systemPrompt,
+                `User Prompt: "${prompt}"`
+            ]);
 
-        const response = await result.response;
-        const text = response.text();
-
-        // Clean up markdown code blocks if present
-        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        try {
-            return JSON.parse(jsonString);
-        } catch {
-            throw new Error("AI theme generation failed");
-        }
+            const response = await result.response;
+            return JSON.parse(response.text()) as GeneratedTheme;
+        });
     },
 
     // --- Journal AI Functions ---
@@ -426,9 +531,11 @@ export const geminiService = {
         milestoneName: string,
         previousEntries: string[] = []
     ): Promise<string> {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        try {
+            return await generateWithFallback("generateJournalPrompt", async (modelName) => {
+                const model = genAI.getGenerativeModel({ model: modelName });
 
-        const prompt = `
+                const prompt = `
 You are a supportive life coach helping someone reflect on their journey toward: "${goalTitle}"
 
 They are currently working on the milestone: "${milestoneName}"
@@ -444,11 +551,10 @@ Generate ONE thoughtful, specific journal prompt question that:
 Return ONLY the question, no quotes or extra formatting. Keep it under 30 words.
         `;
 
-        try {
-            const result = await model.generateContent(prompt);
-            return result.response.text().trim();
+                const result = await model.generateContent(prompt);
+                return result.response.text().trim();
+            });
         } catch {
-            // Fallback prompt if AI fails
             return "What progress have you made today? How are you feeling about your journey?";
         }
     },
@@ -459,13 +565,15 @@ Return ONLY the question, no quotes or extra formatting. Keep it under 30 words.
         journalEntry: string,
         mood: string
     ): Promise<string> {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        try {
+            return await generateWithFallback("generateJournalReflection", async (modelName) => {
+                const model = genAI.getGenerativeModel({ model: modelName });
 
-        const moodGuidance = mood === 'struggling' || mood === 'frustrated'
-            ? 'Provide gentle reassurance and perspective. Acknowledge the difficulty while highlighting their resilience.'
-            : 'Celebrate their progress and momentum. Reinforce positive patterns you notice.';
+                const moodGuidance = mood === 'struggling' || mood === 'frustrated'
+                    ? 'Provide gentle reassurance and perspective. Acknowledge the difficulty while highlighting their resilience.'
+                    : 'Celebrate their progress and momentum. Reinforce positive patterns you notice.';
 
-        const prompt = `
+                const prompt = `
 You are a warm, encouraging life coach. Someone pursuing "${goalTitle}" just wrote this journal entry about "${milestoneName}":
 
 "${journalEntry}"
@@ -481,11 +589,10 @@ Be genuine and specific to what they wrote. Avoid generic platitudes like "keep 
 Reference specific things they mentioned. Keep it under 60 words.
         `;
 
-        try {
-            const result = await model.generateContent(prompt);
-            return result.response.text().trim();
+                const result = await model.generateContent(prompt);
+                return result.response.text().trim();
+            });
         } catch {
-            // Fallback reflection if AI fails
             return "Thank you for sharing your thoughts. Taking time to reflect on your journey shows real commitment to your growth. Keep moving forward at your own pace.";
         }
     }

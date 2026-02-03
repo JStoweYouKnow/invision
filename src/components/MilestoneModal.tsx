@@ -1,22 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink, BookOpen, Video, Wrench, CheckCircle2, Check, Trophy, Sparkles, PenLine } from 'lucide-react';
+import { X, ExternalLink, BookOpen, Video, Wrench, CheckCircle2, Check, Trophy, Sparkles, PenLine, Calendar, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import type { GeneratedPlan } from '@/lib/gemini';
 import { JournalEditor } from './JournalEditor';
 import { JournalTimeline, JournalBadge } from './JournalTimeline';
 import { firestoreService, type JournalEntry } from '@/lib/firestore';
+import { DateChangeReflectionModal } from './DateChangeReflectionModal';
+import type { DateChange, DateChangeReason, DateChangeType, StepChange } from '@/types';
+import { Save } from 'lucide-react';
+
+// Step type from GeneratedPlan
+type StepType = { text: string; date: string; habit?: string };
+
+// Extended milestone type with date history
+type MilestoneWithHistory = GeneratedPlan['timeline'][0] & {
+    dateHistory?: DateChange[];
+    stepHistory?: StepChange[];
+};
 
 interface MilestoneModalProps {
     isOpen: boolean;
     onClose: () => void;
-    milestone: GeneratedPlan['timeline'][0] | null;
+    milestone: MilestoneWithHistory | null;
     milestoneIndex?: number;
     completedSteps?: Set<string>;
     onStepComplete?: (milestoneIndex: number, stepIndex: number) => void;
+    onDateChange?: (milestoneIndex: number, newDate: string, change: DateChange) => void;
+    onStepsChange?: (milestoneIndex: number, steps: StepType[], changes: StepChange[]) => void;
     goalId?: string;
     goalTitle?: string;
+    isReadOnly?: boolean;
 }
 
 export const MilestoneModal: React.FC<MilestoneModalProps> = ({
@@ -26,13 +41,28 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
     milestoneIndex = 0,
     completedSteps = new Set(),
     onStepComplete,
+    onDateChange,
+    onStepsChange,
     goalId,
-    goalTitle
+    goalTitle,
+    isReadOnly = false
 }) => {
     const [localCompleted, setLocalCompleted] = useState<Set<number>>(new Set());
     const [showJournalEditor, setShowJournalEditor] = useState(false);
     const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
     const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | undefined>();
+
+    // Date editing state
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [proposedDate, setProposedDate] = useState<string>('');
+    const [showReflectionModal, setShowReflectionModal] = useState(false);
+    const [showDateHistory, setShowDateHistory] = useState(false);
+
+    // Step editing state
+    const [isEditingSteps, setIsEditingSteps] = useState(false);
+    const [editableSteps, setEditableSteps] = useState<StepType[]>([]);
+    const [pendingStepChanges, setPendingStepChanges] = useState<StepChange[]>([]);
+
 
     // Fetch journal entries when modal opens
     useEffect(() => {
@@ -53,6 +83,9 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
     };
 
     const handleStepClick = (stepIndex: number) => {
+        // Don't allow step completion in read-only mode
+        if (isReadOnly) return;
+
         if (onStepComplete) {
             onStepComplete(milestoneIndex, stepIndex);
         } else {
@@ -78,6 +111,85 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
         }
     };
 
+    // Initialize editable steps when entering edit mode
+    const startEditingSteps = () => {
+        if (!milestone?.steps) return;
+        const steps = milestone.steps.map(step =>
+            typeof step === 'string'
+                ? { text: step, date: '', habit: '' }
+                : { text: step.text, date: step.date || '', habit: step.habit || '' }
+        );
+        setEditableSteps(steps);
+        setPendingStepChanges([]);
+        setIsEditingSteps(true);
+    };
+
+    // Cancel editing and reset state
+    const cancelEditingSteps = () => {
+        setIsEditingSteps(false);
+        setEditableSteps([]);
+        setPendingStepChanges([]);
+
+    };
+
+    // Update a step date
+    const updateStepDate = (index: number, date: string) => {
+        const newSteps = [...editableSteps];
+        const oldStep = { ...newSteps[index] };
+        newSteps[index] = { ...newSteps[index], date };
+        setEditableSteps(newSteps);
+
+        // Track the change
+        const change: StepChange = {
+            id: `step-change-${Date.now()}-${index}`,
+            changeType: 'edit',
+            changedAt: Date.now(),
+            stepIndex: index,
+            previousValue: { date: oldStep.date },
+            newValue: { date }
+        };
+        setPendingStepChanges(prev => [...prev, change]);
+    };
+
+    // Save step changes
+    const saveStepChanges = () => {
+        if (!onStepsChange || pendingStepChanges.length === 0) {
+            cancelEditingSteps();
+            return;
+        }
+
+        onStepsChange(milestoneIndex, editableSteps, pendingStepChanges);
+        setIsEditingSteps(false);
+        setEditableSteps([]);
+        setPendingStepChanges([]);
+
+    };
+
+    // Handle date change confirmation from reflection modal
+    const handleDateChangeConfirm = (reason: DateChangeReason, explanation: string, changeType: DateChangeType) => {
+        if (!milestone || !onDateChange || !proposedDate) return;
+
+        const currentDateObj = new Date(milestone.date + 'T00:00:00');
+        const proposedDateObj = new Date(proposedDate + 'T00:00:00');
+        const daysDiff = Math.round((proposedDateObj.getTime() - currentDateObj.getTime()) / (1000 * 60 * 60 * 24));
+
+        const dateChange: DateChange = {
+            id: `change-${Date.now()}`,
+            previousDate: milestone.date,
+            newDate: proposedDate,
+            changedAt: Date.now(),
+            reason,
+            explanation,
+            changeType,
+            daysDiff,
+        };
+
+        onDateChange(milestoneIndex, proposedDate, dateChange);
+        setShowDatePicker(false);
+        setProposedDate('');
+        setShowReflectionModal(false);
+    };
+
     return typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
             {isOpen && (
@@ -88,7 +200,7 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
+                        className="fixed inset-0 modal-backdrop-macos z-[9998]"
                     />
 
                     {/* Modal */}
@@ -99,8 +211,8 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] h-[700px] z-[9999] p-4 pointer-events-none"
                     >
                         <div
-                            className="bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full pointer-events-auto"
-                            style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                            className="modal-macos rounded-2xl overflow-hidden flex flex-col h-full pointer-events-auto"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', color: '#000000' }}
                         >
                             {showJournalEditor && goalId && goalTitle ? (
                                 <JournalEditor
@@ -154,10 +266,105 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                                 <h2 className="text-2xl font-display font-bold leading-tight text-slate-900">
                                                     {milestone.milestone}
                                                 </h2>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold uppercase tracking-wider text-brand-indigo bg-indigo-50 px-3 py-1 rounded-full">
-                                                        {format(new Date(milestone.date), 'MMMM do, yyyy')}
-                                                    </span>
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold uppercase tracking-wider text-brand-indigo bg-indigo-50 px-3 py-1 rounded-full">
+                                                            {format(new Date(milestone.date), 'MMMM do, yyyy')}
+                                                        </span>
+                                                        {/* Date History Badge */}
+                                                        {milestone.dateHistory && milestone.dateHistory.length > 0 && (
+                                                            <button
+                                                                onClick={() => setShowDateHistory(!showDateHistory)}
+                                                                className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 hover:bg-amber-100 transition-colors"
+                                                            >
+                                                                <History className="w-3 h-3" />
+                                                                {milestone.dateHistory.length}x changed
+                                                                {showDateHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Date Change Button - Only if not read-only */}
+                                                    {!isReadOnly && onDateChange && (
+                                                        <div className="flex items-center gap-2">
+                                                            {showDatePicker ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="date"
+                                                                        value={proposedDate}
+                                                                        onChange={(e) => setProposedDate(e.target.value)}
+                                                                        min={new Date().toISOString().split('T')[0]}
+                                                                        className="text-sm px-3 py-1.5 border border-slate-300 rounded-lg focus:border-brand-purple focus:ring-1 focus:ring-brand-purple text-slate-800"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (proposedDate && proposedDate !== milestone.date) {
+                                                                                setShowReflectionModal(true);
+                                                                            }
+                                                                        }}
+                                                                        disabled={!proposedDate || proposedDate === milestone.date}
+                                                                        className="px-3 py-1.5 text-xs font-bold text-white bg-brand-purple hover:bg-brand-purple/90 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                                                    >
+                                                                        Continue
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setShowDatePicker(false);
+                                                                            setProposedDate('');
+                                                                        }}
+                                                                        className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setProposedDate(milestone.date);
+                                                                        setShowDatePicker(true);
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-purple transition-colors"
+                                                                >
+                                                                    <Calendar className="w-3.5 h-3.5" />
+                                                                    Need to adjust this deadline?
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Date History Dropdown */}
+                                                    {showDateHistory && milestone.dateHistory && milestone.dateHistory.length > 0 && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, height: 0 }}
+                                                            animate={{ opacity: 1, height: 'auto' }}
+                                                            exit={{ opacity: 0, height: 0 }}
+                                                            className="w-full mt-2 p-3 bg-amber-50 rounded-xl border border-amber-200"
+                                                        >
+                                                            <h5 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">
+                                                                Date Change History
+                                                            </h5>
+                                                            <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                                {milestone.dateHistory.slice().reverse().map((change, idx) => (
+                                                                    <div key={idx} className="flex items-center justify-between text-xs p-2 bg-white rounded-lg">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${change.changeType === 'extend'
+                                                                                ? 'bg-amber-100 text-amber-700'
+                                                                                : 'bg-green-100 text-green-700'
+                                                                                }`}>
+                                                                                {change.changeType === 'extend' ? `+${change.daysDiff}d` : `${change.daysDiff}d`}
+                                                                            </span>
+                                                                            <span className="text-slate-600">
+                                                                                {change.reason.replace('_', ' ')}
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="text-slate-400">
+                                                                            {format(new Date(change.changedAt), 'MMM d')}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -179,7 +386,7 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                         </div>
 
                                         {/* Actionable Steps */}
-                                        {milestone.steps && milestone.steps.length > 0 && (
+                                        {((milestone.steps && milestone.steps.length > 0) || isEditingSteps) && (
                                             <div className="space-y-5">
                                                 <div className="flex items-center justify-between px-1">
                                                     <h4 className="font-bold text-lg flex items-center gap-2 text-slate-900">
@@ -188,22 +395,56 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                                         </div>
                                                         Action Plan
                                                     </h4>
-                                                    <span className="text-sm font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-                                                        {completedCount}/{totalSteps} complete
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        {!isEditingSteps && (
+                                                            <span className="text-sm font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
+                                                                {completedCount}/{totalSteps} complete
+                                                            </span>
+                                                        )}
+                                                        {/* Edit/Save Button */}
+                                                        {!isReadOnly && onStepsChange && (
+                                                            isEditingSteps ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={cancelEditingSteps}
+                                                                        className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={saveStepChanges}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
+                                                                    >
+                                                                        <Save className="w-3.5 h-3.5" />
+                                                                        Save Dates
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={startEditingSteps}
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-brand-purple border border-slate-200 hover:border-brand-purple/30 rounded-lg hover:bg-purple-50 transition-colors"
+                                                                >
+                                                                    <Calendar className="w-3.5 h-3.5" />
+                                                                    Adj. Dates
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 </div>
 
-                                                {/* Progress bar */}
-                                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-100">
-                                                    <motion.div
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0}%` }}
-                                                        className="h-full bg-gradient-to-r from-brand-indigo to-brand-purple rounded-full shadow-[0_2px_10px_rgba(168,85,247,0.3)]"
-                                                        transition={{ type: "spring", stiffness: 100 }}
-                                                    />
-                                                </div>
+                                                {/* Progress bar - only in view mode */}
+                                                {!isEditingSteps && (
+                                                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-100">
+                                                        <motion.div
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0}%` }}
+                                                            className="h-full bg-gradient-to-r from-brand-indigo to-brand-purple rounded-full shadow-[0_2px_10px_rgba(168,85,247,0.3)]"
+                                                            transition={{ type: "spring", stiffness: 100 }}
+                                                        />
+                                                    </div>
+                                                )}
 
-                                                {allComplete && (
+                                                {!isEditingSteps && allComplete && (
                                                     <motion.div
                                                         initial={{ opacity: 0, scale: 0.95 }}
                                                         animate={{ opacity: 1, scale: 1 }}
@@ -220,79 +461,119 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                                     </motion.div>
                                                 )}
 
-                                                <div className="space-y-3">
-                                                    {milestone.steps.map((step, idx) => {
-                                                        const completed = isStepCompleted(idx);
-                                                        const hasResource = milestone.resources && milestone.resources[idx];
-                                                        const stepText = typeof step === 'string' ? step : step.text;
-                                                        const stepDate = typeof step !== 'string' ? step.date : undefined;
-                                                        const stepHabit = typeof step !== 'string' ? step.habit : undefined;
-
-                                                        return (
-                                                            <motion.div
+                                                {/* EDIT MODE - DATES ONLY */}
+                                                {isEditingSteps ? (
+                                                    <div className="space-y-3">
+                                                        <div className="p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 mb-4 flex gap-2">
+                                                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                                                            <p>You can adjust the target dates for your steps to better fit your schedule. Step descriptions are fixed.</p>
+                                                        </div>
+                                                        {editableSteps.map((step, idx) => (
+                                                            <div
                                                                 key={idx}
-                                                                whileHover={{ scale: 1.01 }}
-                                                                whileTap={{ scale: 0.99 }}
-                                                                className={`flex gap-4 p-4 rounded-2xl border cursor-pointer transition-all shadow-sm group ${completed
-                                                                    ? 'bg-green-50/50 border-green-200'
-                                                                    : 'bg-white border-slate-200 hover:border-brand-purple/40 hover:shadow-md hover:shadow-brand-purple/5'
-                                                                    }`}
-                                                                onClick={() => handleStepClick(idx)}
+                                                                className="flex items-center gap-3 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm"
                                                             >
-                                                                <div
-                                                                    className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${completed
-                                                                        ? 'bg-green-500 border-green-500 scale-110'
-                                                                        : 'bg-white border-slate-200 group-hover:border-brand-purple text-slate-400 group-hover:text-brand-purple'
-                                                                        }`}
-                                                                >
-                                                                    {completed ? (
-                                                                        <Check className="w-5 h-5 text-white" />
-                                                                    ) : (
-                                                                        <span className="text-sm font-bold">{idx + 1}</span>
+                                                                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium text-slate-800 mb-1">{step.text}</p>
+                                                                    {step.habit && (
+                                                                        <p className="text-xs text-slate-500 italic">Habit: {step.habit}</p>
                                                                     )}
                                                                 </div>
-                                                                <div className="flex-1 min-w-0 pt-1">
-                                                                    <div className="flex flex-col gap-1.5">
-                                                                        <div className="flex justify-between items-start gap-4">
-                                                                            <p
-                                                                                className={`text-base font-medium leading-normal ${completed ? 'text-green-800 line-through opacity-70' : 'text-slate-800'}`}
-                                                                            >
-                                                                                {stepText}
-                                                                            </p>
-                                                                            {stepDate && (
-                                                                                <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">
-                                                                                    {new Date(stepDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
+                                                                <div className="w-40">
+                                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                                                                        Target Date
+                                                                    </label>
+                                                                    <input
+                                                                        type="date"
+                                                                        value={step.date}
+                                                                        onChange={(e) => updateStepDate(idx, e.target.value)}
+                                                                        className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:border-brand-purple focus:ring-1 focus:ring-brand-purple text-slate-800"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    /* VIEW MODE */
+                                                    <div className="space-y-3">
+                                                        {milestone.steps.map((step, idx) => {
+                                                            const completed = isStepCompleted(idx);
+                                                            const hasResource = milestone.resources && milestone.resources[idx];
+                                                            const stepText = typeof step === 'string' ? step : step.text;
+                                                            const stepDate = typeof step !== 'string' ? step.date : undefined;
+                                                            const stepHabit = typeof step !== 'string' ? step.habit : undefined;
 
-                                                                        {stepHabit && (
-                                                                            <div className="flex items-center mt-1 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg w-fit border border-slate-100">
-                                                                                <span className="font-bold text-brand-indigo uppercase tracking-wider text-[10px] mr-3">Habit</span>
-                                                                                <span className="font-medium text-slate-700">{stepHabit}</span>
-                                                                            </div>
+                                                            return (
+                                                                <motion.div
+                                                                    key={idx}
+                                                                    whileHover={isReadOnly ? {} : { scale: 1.01 }}
+                                                                    whileTap={isReadOnly ? {} : { scale: 0.99 }}
+                                                                    className={`flex flex-col items-center text-center gap-4 p-4 rounded-2xl border transition-all shadow-sm group ${completed
+                                                                        ? 'bg-green-50/50 border-green-200'
+                                                                        : isReadOnly
+                                                                            ? 'bg-white border-slate-200'
+                                                                            : 'bg-white border-slate-200 hover:border-brand-purple/40 hover:shadow-md hover:shadow-brand-purple/5 cursor-pointer'
+                                                                        }`}
+                                                                    onClick={() => handleStepClick(idx)}
+                                                                >
+                                                                    <div
+                                                                        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${completed
+                                                                            ? 'bg-green-500 border-green-500 scale-110'
+                                                                            : 'bg-white border-slate-200 group-hover:border-brand-purple text-slate-400 group-hover:text-brand-purple'
+                                                                            }`}
+                                                                    >
+                                                                        {completed ? (
+                                                                            <Check className="w-5 h-5 text-white" />
+                                                                        ) : (
+                                                                            <span className="text-sm font-bold">{idx + 1}</span>
                                                                         )}
                                                                     </div>
-                                                                    {/* Linked Resource */}
-                                                                    {hasResource && (
-                                                                        <a
-                                                                            href={milestone.resources![idx].url}
-                                                                            target="_blank"
-                                                                            rel="noreferrer"
-                                                                            onClick={(e) => e.stopPropagation()}
-                                                                            className="inline-flex items-center gap-2 mt-3 text-sm font-bold !text-black hover:text-slate-700 hover:underline bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-full transition-all"
-                                                                            style={{ color: 'black' }}
-                                                                        >
-                                                                            {getIconForType(milestone.resources![idx].type)}
-                                                                            <span>Open Resource</span>
-                                                                            <ExternalLink className="w-3.5 h-3.5" />
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            </motion.div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                                    <div className="flex-1 min-w-0 pt-1">
+                                                                        <div className="flex flex-col gap-1.5 w-full">
+                                                                            <div className="flex flex-col items-center gap-2">
+                                                                                <p
+                                                                                    className={`text-base font-medium leading-normal ${completed ? 'text-green-800 line-through opacity-70' : 'text-slate-800'}`}
+                                                                                >
+                                                                                    {stepText}
+                                                                                </p>
+                                                                                {stepDate && (
+                                                                                    <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">
+                                                                                        {new Date(stepDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {stepHabit && (
+                                                                                <div className="flex items-center justify-center mt-1 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg w-fit mx-auto border border-slate-100">
+                                                                                    <span className="font-bold text-brand-indigo uppercase tracking-wider text-[10px] mr-3">Habit</span>
+                                                                                    <span className="font-medium text-slate-700">{stepHabit}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        {/* Linked Resource */}
+                                                                        {hasResource && (
+                                                                            <a
+                                                                                href={milestone.resources![idx].url}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="inline-flex items-center gap-2 mt-3 text-sm font-bold !text-black hover:text-slate-700 hover:underline bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-full transition-all"
+                                                                                style={{ color: 'black' }}
+                                                                            >
+                                                                                {getIconForType(milestone.resources![idx].type)}
+                                                                                <span>Open Resource</span>
+                                                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                </motion.div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
@@ -311,10 +592,10 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                                             href={resource.url}
                                                             target="_blank"
                                                             rel="noreferrer"
-                                                            className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-brand-indigo/30 hover:bg-white hover:shadow-md hover:shadow-brand-indigo/5 transition-all group"
+                                                            className="flex flex-col items-center text-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-brand-indigo/30 hover:bg-white hover:shadow-md hover:shadow-brand-indigo/5 transition-all group"
                                                         >
 
-                                                            <div className="flex-1 min-w-0">
+                                                            <div className="flex-1 min-w-0 w-full">
                                                                 <div className="font-bold text-base truncate group-hover:text-brand-indigo transition-colors capitalize !text-black" style={{ color: 'black' }}>
                                                                     {resource.title}
                                                                 </div>
@@ -329,7 +610,7 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                             </div>
                                         )}
 
-                                        {goalId && (
+                                        {goalId && !isReadOnly && (
                                             <div className="space-y-5 pt-6 border-t border-slate-100">
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="font-bold text-lg flex items-center gap-2 text-slate-900">
@@ -387,6 +668,23 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                     </motion.div>
 
 
+                    {/* Date Change Reflection Modal */}
+                    {milestone && (
+                        <DateChangeReflectionModal
+                            isOpen={showReflectionModal}
+                            onClose={() => {
+                                setShowReflectionModal(false);
+                                setShowDatePicker(false);
+                                setProposedDate('');
+                            }}
+                            milestoneName={milestone.milestone}
+                            currentDate={milestone.date}
+                            proposedDate={proposedDate || milestone.date}
+                            stepsCompleted={completedCount}
+                            totalSteps={totalSteps}
+                            onConfirm={handleDateChangeConfirm}
+                        />
+                    )}
                 </>
             )}
         </AnimatePresence>,

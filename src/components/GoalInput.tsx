@@ -5,6 +5,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { MoonContainer } from './themes/MoonContainer';
 import { BrainContainer } from './themes/BrainContainer';
 import { TreeContainer } from './themes/TreeContainer';
+import { VoiceInput } from './VoiceInput';
+import { Tooltip } from './TooltipSystem';
+import { GoalTemplates } from './GoalTemplates';
 
 interface GoalInputProps {
     onSubmit: (goal: string, timeline: string, image?: File) => Promise<void>;
@@ -82,6 +85,8 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                             {children}
                         </div>
 
+                        <GoalTemplates onSelect={setInput} />
+
                         {selectedImage && imagePreviewUrl && (
                             <div className="relative w-fit mx-auto">
                                 <img
@@ -114,7 +119,7 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                 className={`w-full bg-transparent border-none text-base md:text-lg font-display font-bold ${['brain', 'tree'].includes(currentTheme.id)
                                     ? 'text-white placeholder:text-white/60 caret-white selection:bg-white/20'
                                     : 'text-slate-800 placeholder:text-slate-500 caret-purple-600 selection:bg-purple-200'
-                                    } placeholder:font-playful placeholder:font-medium placeholder:tracking-wide focus:ring-0 focus:outline-none resize-none min-h-[35px] max-h-[80px] py-1.5 text-center leading-tight tracking-tight break-words whitespace-pre-wrap`}
+                                    } placeholder:font-playful placeholder:font-bold placeholder:tracking-wide focus:ring-0 focus:outline-none resize-none min-h-[35px] max-h-[80px] py-1.5 text-center leading-tight tracking-tight break-words whitespace-pre-wrap`}
                                 rows={1}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -126,15 +131,13 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
 
                             {/* Timeline Selection - Dropdown */}
                             <div className="mt-3 flex items-center justify-center gap-2">
+                                {/* Hide "Timeline:" label on mobile */}
                                 <div
-                                    className="flex items-center justify-center h-10 rounded-full text-sm font-medium shadow-md backdrop-blur-md"
+                                    className="hidden sm:flex items-center justify-center h-11 rounded-full text-sm font-medium shadow-md backdrop-blur-md px-5"
                                     style={{
-                                        backgroundColor: 'rgba(255, 255, 255, 0.1)', // Transparent Glass
-                                        color: '#ffffff', // White text for glass
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        color: '#ffffff',
                                         border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        paddingLeft: '2.5rem',
-                                        paddingRight: '2.5rem',
-                                        height: '40px'
                                     }}
                                 >
                                     <span>Timeline:</span>
@@ -143,20 +146,12 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                     <select
                                         value={timeline}
                                         onChange={(e) => setTimeline(e.target.value)}
-                                        className="appearance-none rounded-full cursor-pointer transition-all duration-200 shadow-md hover:scale-105 text-center"
+                                        className="appearance-none rounded-full cursor-pointer transition-all duration-200 shadow-md hover:scale-105 text-center h-11 min-h-[44px] px-6 sm:px-10 text-sm font-semibold"
                                         style={{
                                             backgroundColor: currentTheme.colors.primary,
                                             color: '#ffffff',
                                             border: 'none',
-                                            paddingLeft: '2.5rem',
-                                            paddingRight: '2.5rem',
-                                            paddingTop: '0.5rem',
-                                            paddingBottom: '0.5rem',
-                                            fontSize: '0.875rem',
-                                            fontWeight: 600,
                                             boxShadow: `0 4px 6px -1px ${currentTheme.colors.primary}4D`,
-                                            textAlign: 'center',
-                                            height: '40px'
                                         }}
                                         onMouseEnter={(e) => {
                                             e.currentTarget.style.filter = 'brightness(1.1)';
@@ -172,7 +167,7 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                         ))}
                                     </select>
                                     {/* Custom dropdown arrow */}
-                                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                         <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                                         </svg>
@@ -180,17 +175,24 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                 </div>
                             </div>
 
-                            {/* Action Bar */}
-                            <div className="flex items-center justify-center gap-3 mt-3">
+                            {/* Action Bar - Wraps on mobile */}
+                            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-3">
+                                {/* Voice Input Button */}
+                                <Tooltip id="voice-input" content="Speak your goal" position="top">
+                                    <VoiceInput
+                                        onTranscript={(text) => setInput(prev => prev ? `${prev} ${text}` : text)}
+                                        disabled={isLoading}
+                                    />
+                                </Tooltip>
+
                                 <button
                                     type="button"
                                     onClick={() => setShowUrlInput(!showUrlInput)}
-                                    className="flex items-center justify-center px-5 h-10 rounded-full transition-all duration-300 shadow-md hover:scale-105"
+                                    className="flex items-center justify-center px-4 sm:px-5 h-11 min-h-[44px] rounded-full transition-all duration-300 shadow-md hover:scale-105 active:scale-95"
                                     style={{
                                         backgroundColor: currentTheme.colors.primary,
                                         color: '#ffffff',
                                         boxShadow: `0 4px 6px -1px ${currentTheme.colors.primary}4D`,
-                                        height: '40px'
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.filter = 'brightness(1.1)';
@@ -200,18 +202,17 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                     }}
                                     title="Add URL"
                                 >
-                                    <span className="text-sm font-semibold whitespace-nowrap">Upload URL</span>
+                                    <span className="text-sm font-semibold whitespace-nowrap">URL</span>
                                 </button>
 
                                 <button
                                     type="submit"
                                     disabled={isLoading || (!input.trim() && !selectedImage)}
-                                    className="flex items-center justify-center px-5 h-10 rounded-full transition-all duration-300 shadow-md hover:scale-105 disabled:cursor-not-allowed"
+                                    className="flex items-center justify-center px-5 sm:px-6 h-11 min-h-[44px] rounded-full transition-all duration-300 shadow-md hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{
-                                        backgroundColor: currentTheme.colors.primary, // Exact same as others
+                                        backgroundColor: currentTheme.colors.primary,
                                         color: '#ffffff',
                                         boxShadow: `0 4px 6px -1px ${currentTheme.colors.primary}4D`,
-                                        height: '40px'
                                     }}
                                     onMouseEnter={(e) => {
                                         if (!e.currentTarget.disabled) {
@@ -224,26 +225,25 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                         }
                                     }}
                                 >
-                                    <span className="text-sm font-semibold whitespace-nowrap">{isLoading ? 'Launching...' : 'Launch Vision'}</span>
+                                    <span className="text-sm font-semibold whitespace-nowrap">{isLoading ? 'Launching...' : 'Launch'}</span>
                                 </button>
 
                                 {/* Wormhole Button */}
                                 {onWormhole && (
                                     <button
                                         type="button"
-                                        onClick={(e) => e.preventDefault()} // Disable default click
+                                        onClick={(e) => e.preventDefault()}
                                         onMouseDown={(e) => {
-                                            e.preventDefault(); // Prevent focus loss
-                                            onWormhole?.(); // Trigger immediately
+                                            e.preventDefault();
+                                            onWormhole?.();
                                         }}
                                         disabled={isLoading}
-                                        className="flex items-center justify-center gap-2 px-5 h-10 rounded-full transition-all duration-300 shadow-md hover:scale-105 hover:rotate-2 disabled:opacity-40 backdrop-blur-sm"
+                                        className="flex items-center justify-center gap-1.5 px-4 sm:px-5 h-11 min-h-[44px] rounded-full transition-all duration-300 shadow-md hover:scale-105 active:scale-95 hover:rotate-2 disabled:opacity-40 backdrop-blur-sm"
                                         style={{
                                             backgroundColor: 'rgba(0, 0, 0, 0.6)',
                                             color: currentTheme.colors.primary,
                                             border: `1px solid ${currentTheme.colors.primary}66`,
                                             boxShadow: `0 0 10px ${currentTheme.colors.primary}20`,
-                                            height: '40px'
                                         }}
                                         title="Surprise Me"
                                     >
@@ -252,7 +252,7 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                             <path d="M10 14a3 3 0 1 0 3-3" />
                                             <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662" />
                                         </svg>
-                                        <span className="text-sm font-semibold whitespace-nowrap">Wormhole</span>
+                                        <span className="text-sm font-semibold whitespace-nowrap hidden sm:inline">Wormhole</span>
                                     </button>
                                 )}
                             </div>

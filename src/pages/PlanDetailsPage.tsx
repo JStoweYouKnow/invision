@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trophy } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { firestoreService, type SavedGoal } from '@/lib/firestore';
 import type { GeneratedPlan } from '@/lib/gemini';
 import { PlanViewer } from '@/components/PlanViewer';
@@ -10,11 +11,19 @@ import { NavigationMenu } from '@/components/NavigationMenu';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { ThemeQuickToggle } from '@/components/ThemeQuickToggle';
+import { SkeletonPlanViewer } from '@/components/Skeleton';
+import { useAuth } from '@/contexts/AuthContext';
+import type { DateChange, PauseRecord, StepChange } from '@/types';
 export const PlanDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [goal, setGoal] = useState<SavedGoal | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [progress, setProgress] = useState({ completed: 0, total: 0 });
+    const { user } = useAuth();
+
+    // Check if current user is the owner of this goal
+    const isOwner = user && goal ? user.uid === goal.userId : false;
 
     useEffect(() => {
         const fetchGoal = async () => {
@@ -71,6 +80,10 @@ export const PlanDetailsPage: React.FC = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const navigate = useNavigate();
 
+    const handleProgressChange = useCallback((completed: number, total: number) => {
+        setProgress({ completed, total });
+    }, []);
+
     const handleDelete = async () => {
         if (!goal || !goal.id) return;
         try {
@@ -82,11 +95,111 @@ export const PlanDetailsPage: React.FC = () => {
         }
     };
 
+    // Pause goal handler
+    const handlePause = async (reason: string, reasonCategory: PauseRecord['reasonCategory']) => {
+        if (!goal || !goal.id) return;
+        try {
+            await firestoreService.pauseGoal(goal.id, reason, reasonCategory);
+            // Update local state
+            setGoal(prev => prev ? {
+                ...prev,
+                status: 'paused' as const,
+                pausedAt: Date.now(),
+                pauseReason: reason,
+                pauseReasonCategory: reasonCategory,
+            } : null);
+        } catch (error) {
+            console.error("Failed to pause goal:", error);
+        }
+    };
+
+    // Resume goal handler
+    const handleResume = async () => {
+        if (!goal || !goal.id) return;
+        try {
+            const result = await firestoreService.resumeGoal(goal.id);
+            // Refetch the goal to get updated timeline with shifted dates
+            const updatedGoal = await firestoreService.getGoalById(goal.id);
+            if (updatedGoal) {
+                setGoal(updatedGoal);
+            }
+            console.log(`Goal resumed, dates shifted by ${result.daysShifted} days`);
+        } catch (error) {
+            console.error("Failed to resume goal:", error);
+        }
+    };
+
+    // Milestone date change handler
+    const handleMilestoneDateChange = async (
+        milestoneIndex: number,
+        newDate: string,
+        change: DateChange
+    ) => {
+        if (!goal || !goal.id) return;
+        try {
+            await firestoreService.updateMilestoneDate(goal.id, milestoneIndex, newDate, change);
+
+            // Update local state with new date and history
+            setGoal(prev => {
+                if (!prev) return null;
+                const updatedTimeline = [...prev.plan.timeline];
+                if (updatedTimeline[milestoneIndex]) {
+                    const milestone = { ...updatedTimeline[milestoneIndex] };
+                    milestone.date = newDate;
+                    // Add to date history
+                    const existingHistory = (milestone as { dateHistory?: DateChange[] }).dateHistory || [];
+                    (milestone as { dateHistory?: DateChange[] }).dateHistory = [...existingHistory, change];
+                    updatedTimeline[milestoneIndex] = milestone;
+                }
+                return {
+                    ...prev,
+                    plan: { ...prev.plan, timeline: updatedTimeline }
+                };
+            });
+        } catch (error) {
+            console.error("Failed to update milestone date:", error);
+        }
+    };
+
+    // Milestone steps change handler
+    const handleMilestoneStepsChange = async (
+        milestoneIndex: number,
+        steps: { text: string; date: string; habit?: string }[],
+        changes: StepChange[]
+    ) => {
+        if (!goal || !goal.id) return;
+        try {
+            await firestoreService.updateMilestoneSteps(goal.id, milestoneIndex, steps, changes);
+
+            // Update local state with new steps
+            setGoal(prev => {
+                if (!prev) return null;
+                const updatedTimeline = [...prev.plan.timeline];
+                if (updatedTimeline[milestoneIndex]) {
+                    const milestone = { ...updatedTimeline[milestoneIndex] };
+                    milestone.steps = steps;
+                    // Add to step history
+                    const existingHistory = (milestone as { stepHistory?: StepChange[] }).stepHistory || [];
+                    (milestone as { stepHistory?: StepChange[] }).stepHistory = [...existingHistory, ...changes];
+                    updatedTimeline[milestoneIndex] = milestone;
+                }
+                return {
+                    ...prev,
+                    plan: { ...prev.plan, timeline: updatedTimeline }
+                };
+            });
+        } catch (error) {
+            console.error("Failed to update milestone steps:", error);
+        }
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
-                <span className="ml-4 text-white">Loading Goal...</span>
+            <div className="min-h-screen bg-background text-foreground p-4 md:p-8 relative overflow-hidden">
+                <ThemeBackground className="z-0" />
+                <div className="w-full max-w-6xl mx-auto px-4 md:px-8 pt-32 relative z-10">
+                    <SkeletonPlanViewer />
+                </div>
             </div>
         );
     }
@@ -101,41 +214,87 @@ export const PlanDetailsPage: React.FC = () => {
         );
     }
     return (
-        <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
-            {/* Theme Background */}
-            <ThemeBackground className="z-0" />
+        <>
+            <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+                {/* Theme Background */}
+                <ThemeBackground className="z-0" />
 
-            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
-                <NavigationMenu />
-            </div>
-
-            <div className="absolute top-6 left-6 z-50 flex flex-col gap-4">
-                <div className="flex items-center gap-14">
-                    <HomeButton />
-                    <ThemeQuickToggle />
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+                    <NavigationMenu />
                 </div>
 
-                <Link
-                    to="/dashboard"
-                    className="p-3 bg-black/20 hover:bg-black/40 rounded-full text-white backdrop-blur-md border border-white/10 transition-all hover:scale-105 active:scale-95 group w-fit"
-                    title="Back to Dashboard"
-                >
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
-                </Link>
-            </div>
-            <div className="w-full max-w-6xl mx-auto px-4 md:px-8">
-                <PlanViewer
-                    plan={goal.plan}
-                    visionImage={goal.visionImage}
-                    isPublic={goal.isPublic}
-                    onTogglePublic={handleTogglePublic}
-                    standalone={false}
-                    onUpdatePlan={handlePlanUpdate}
-                    goalId={goal.id}
-                    onDelete={() => setShowDeleteConfirm(true)}
-                />
+                <div className="absolute top-6 left-6 z-50 flex flex-col gap-4">
+                    <div className="flex items-center gap-14">
+                        <HomeButton />
+                        <ThemeQuickToggle />
+                    </div>
+
+                    <Link
+                        to="/dashboard"
+                        className="btn btn--icon btn--ghost bg-black/20 hover:bg-black/40 backdrop-blur-md text-white group w-fit"
+                        title="Back to Dashboard"
+                    >
+                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                    </Link>
+                </div>
+
+                {/* Step Counter (Fixed Bottom Left) */}
+                {progress.total > 0 && (
+                    <div
+                        className="w-56 bg-black/60 backdrop-blur-md p-3 rounded-xl shadow-lg transition-all duration-300 hover:bg-black/70 font-sans pointer-events-auto"
+                        style={{ position: 'fixed', bottom: '16px', left: '16px', zIndex: 40 }}
+                    >
+                        <div className="flex items-center justify-between mb-2 gap-4">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Trophy className="w-4 h-4 text-brand-purple flex-shrink-0" />
+                                <span className="font-bold text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+                                    {progress.completed} / {progress.total} steps
+                                </span>
+                            </div>
+                            <span className="text-xs text-white/60 font-medium whitespace-nowrap flex-shrink-0">
+                                {Math.round((progress.completed / progress.total) * 100)}%
+                            </span>
+                        </div>
+                        <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                                className="h-full bg-gradient-to-r from-brand-indigo to-brand-purple rounded-full shadow-[0_0_10px_rgba(168,85,247,0.4)]"
+                                transition={{ type: "spring", stiffness: 100 }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                <div className="w-full max-w-6xl mx-auto px-4 md:px-8 pt-32">
+                    <PlanViewer
+                        plan={goal.plan}
+                        visionImage={goal.visionImage}
+                        isPublic={goal.isPublic}
+                        onTogglePublic={isOwner ? handleTogglePublic : undefined}
+                        standalone={false}
+                        onUpdatePlan={isOwner ? handlePlanUpdate : undefined}
+                        goalId={goal.id}
+                        onDelete={isOwner ? () => setShowDeleteConfirm(true) : undefined}
+                        onProgressChange={handleProgressChange}
+                        isReadOnly={!isOwner}
+                        authorName={!isOwner ? goal.authorName : undefined}
+                        // Pause functionality
+                        isPaused={(goal as { status?: string }).status === 'paused'}
+                        pausedAt={(goal as { pausedAt?: number }).pausedAt}
+                        pauseReason={(goal as { pauseReason?: string }).pauseReason}
+                        pauseHistory={(goal as { pauseHistory?: PauseRecord[] }).pauseHistory}
+                        onPause={isOwner ? handlePause : undefined}
+                        onResume={isOwner ? handleResume : undefined}
+                        // Date change functionality
+                        onMilestoneDateChange={isOwner ? handleMilestoneDateChange : undefined}
+                        onMilestoneStepsChange={isOwner ? handleMilestoneStepsChange : undefined}
+                        goalCreatedAt={goal.createdAt.getTime()}
+                    />
+                </div>
             </div>
 
+            {/* Modal rendered outside overflow-hidden container */}
             <ConfirmationModal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
@@ -146,6 +305,6 @@ export const PlanDetailsPage: React.FC = () => {
                 cancelText="Keep Vision"
                 isDestructive={true}
             />
-        </div>
+        </>
     );
 };

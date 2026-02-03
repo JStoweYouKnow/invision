@@ -55,9 +55,9 @@ export const ThemeQuickToggle: React.FC = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 top-full mt-2 w-56 py-2 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-xl z-50"
+                        className="absolute right-0 top-full mt-2 w-56 py-2 bg-white backdrop-blur-xl border border-slate-200 rounded-xl shadow-xl z-50"
                     >
-                        <div className="px-3 py-1.5 text-xs font-semibold text-white/50 uppercase tracking-wider">
+                        <div className="px-3 py-1.5 text-xs font-bold text-black uppercase tracking-wider bg-white">
                             Themes
                         </div>
 
@@ -71,7 +71,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                         setTheme(theme.id);
                                         setIsOpen(false);
                                     }}
-                                    className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors ${isSelected ? 'bg-brand-purple/20' : ''
+                                    className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-100 transition-colors ${isSelected ? 'bg-brand-purple/10' : ''
                                         }`}
                                     title={`Switch to ${theme.name} theme`}
                                 >
@@ -84,7 +84,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex-1 text-left">
-                                        <div className="text-sm font-medium text-white">{theme.name}</div>
+                                        <div className="text-sm font-medium text-slate-900">{theme.name}</div>
                                     </div>
                                     {isSelected && (
                                         <Check className="w-4 h-4 text-brand-purple" />
@@ -96,8 +96,8 @@ export const ThemeQuickToggle: React.FC = () => {
                         {/* Custom themes */}
                         {customThemes.length > 0 && (
                             <>
-                                <div className="my-1 border-t border-white/10" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-white/50 uppercase tracking-wider">
+                                <div className="my-1 border-t border-slate-200" />
+                                <div className="px-3 py-1.5 text-xs font-bold text-black uppercase tracking-wider bg-white">
                                     Custom
                                 </div>
                                 {customThemes.map(theme => {
@@ -109,7 +109,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                                 setTheme(theme.customId);
                                                 setIsOpen(false);
                                             }}
-                                            className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors ${isSelected ? 'bg-brand-purple/20' : ''
+                                            className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-100 transition-colors ${isSelected ? 'bg-brand-purple/10' : ''
                                                 }`}
                                             title={`Switch to ${theme.name} theme`}
                                         >
@@ -125,7 +125,7 @@ export const ThemeQuickToggle: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div className="flex-1 text-left">
-                                                <div className="text-sm font-medium text-white truncate">{theme.name}</div>
+                                                <div className="text-sm font-medium text-slate-900 truncate">{theme.name}</div>
                                             </div>
                                             {isSelected && (
                                                 <Check className="w-4 h-4 text-brand-purple" />
@@ -135,19 +135,19 @@ export const ThemeQuickToggle: React.FC = () => {
                                 })}
                             </>
                         )}
-                        <div className="my-1 border-t border-white/10" />
+                        <div className="my-1 border-t border-slate-200" />
                         <button
                             onClick={() => {
                                 setIsOpen(false);
                                 setIsCreatorOpen(true);
                             }}
-                            className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors text-left group"
+                            className="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-100 transition-colors text-left group"
                         >
-                            <div className="w-8 h-8 rounded-lg border-2 border-dashed border-white/20 flex items-center justify-center group-hover:border-white/40 group-hover:bg-white/5 transition-all">
-                                <Plus className="w-4 h-4 text-white/50 group-hover:text-white/80" />
+                            <div className="w-8 h-8 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center group-hover:border-slate-500 group-hover:bg-slate-50 transition-all">
+                                <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
                             </div>
                             <div className="flex-1">
-                                <div className="text-sm font-medium text-white/70 group-hover:text-white">Create Custom</div>
+                                <div className="text-sm font-medium text-slate-600 group-hover:text-slate-900">Create Custom</div>
                             </div>
                         </button>
                     </motion.div>

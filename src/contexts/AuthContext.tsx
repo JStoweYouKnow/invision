@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { type User, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { type User, onIdTokenChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 import { MOCK_USER } from '@/lib/mockData';
 
@@ -39,7 +39,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        // Use onIdTokenChanged instead of onAuthStateChanged to catch profile updates (name/photo changes)
+        // because updateProfile triggers a token refresh
+        const unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
             if (firebaseUser) {
                 setUser(firebaseUser);
                 setLoading(false);
@@ -79,10 +81,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(true);
         localStorage.setItem('isMockAuth', 'true');
         // Simulate a small network delay for realism
-        setTimeout(() => {
-            setUser(createMockUser());
-            setLoading(false);
-        }, 800);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setUser(createMockUser());
+        setLoading(false);
     };
 
     const signOut = async () => {

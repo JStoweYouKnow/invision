@@ -25,8 +25,8 @@ interface MissionControlProps {
 
 // Derive status from plan progress
 const getGoalStatus = (goal: SavedGoal): 'completed' | 'active' | 'charted' => {
-    const phases = goal.plan?.timeline || [];
-    if (phases.length === 0) return 'charted';
+    const phases = goal.plan?.timeline;
+    if (!phases || !Array.isArray(phases) || phases.length === 0) return 'charted';
     const completed = phases.filter(p => p.isCompleted).length;
     if (completed === phases.length) return 'completed';
     if (completed > 0) return 'active';
@@ -43,9 +43,11 @@ const calculateStats = (goals: SavedGoal[]) => {
     let completedWaypoints = 0;
 
     goals.forEach(goal => {
-        const phases = goal.plan?.timeline || [];
-        totalWaypoints += phases.length;
-        completedWaypoints += phases.filter(p => p.isCompleted).length;
+        const phases = goal.plan?.timeline;
+        if (phases && Array.isArray(phases)) {
+            totalWaypoints += phases.length;
+            completedWaypoints += phases.filter(p => p.isCompleted).length;
+        }
     });
 
     const overallProgress = totalWaypoints > 0
@@ -69,8 +71,8 @@ const getCurrentVoyage = (goals: SavedGoal[]) => {
 
     // Find goal with most recent activity or highest progress
     return activeGoals.reduce((best, current) => {
-        const currentPhases = current.plan?.timeline || [];
-        const bestPhases = best.plan?.timeline || [];
+        const currentPhases = Array.isArray(current.plan?.timeline) ? current.plan!.timeline : [];
+        const bestPhases = Array.isArray(best.plan?.timeline) ? best.plan!.timeline : [];
         const currentCompleted = currentPhases.filter(p => p.isCompleted).length;
         const bestCompleted = bestPhases.filter(p => p.isCompleted).length;
         return currentCompleted >= bestCompleted ? current : best;

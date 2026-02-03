@@ -35,6 +35,7 @@ export interface UserProfile {
         publicProfile: boolean;
         soundEnabled?: boolean;
         analyticsEnabled?: boolean;
+        includeProfileInVisions?: boolean; // Include user's photo in AI-generated vision images
     };
 }
 
@@ -61,8 +62,7 @@ function sanitizeData(data: any): any {
     }
 
     if (typeof data === 'object') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sanitized: any = {};
+        const sanitized: Record<string, unknown> = {};
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
                 sanitized[key] = sanitizeData(data[key]);
@@ -74,12 +74,61 @@ function sanitizeData(data: any): any {
     return data;
 }
 
-// --- In-Memory Mock Store for Demo Session ---
-const mockStore = {
+// --- In-Memory Mock Store for Demo Session (Persisted via LocalStorage) ---
+const STORAGE_KEY = 'invision_mock_store_v1';
+
+// Helper to revive dates from JSON
+const reviveDates = (_key: string, value: unknown) => {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+        return new Date(value);
+    }
+    return value;
+};
+
+const loadMockStore = () => {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const data = JSON.parse(stored, reviveDates);
+            // Re-attach listeners object which shouldn't be persisted
+            // Convert deletedGoalIds array back to Set
+            return {
+                ...data,
+                listeners: {},
+                deletedGoalIds: new Set(data.deletedGoalIds || [])
+            };
+        }
+    } catch (e) {
+        console.warn('Failed to load mock store', e);
+    }
+    return null;
+};
+
+const saveMockStore = () => {
+    try {
+        // Don't persist listeners, convert Set to Array for JSON
+        const { listeners: _listeners, deletedGoalIds, ...dataToSave } = mockStore;
+        void _listeners;
+        const saveData = {
+            ...dataToSave,
+            deletedGoalIds: Array.from(deletedGoalIds)
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+    } catch (e) {
+        console.warn('Failed to save mock store', e);
+    }
+};
+
+const initialStore = loadMockStore() || {
     messages: {} as Record<string, Message[]>,
     conversations: [] as Conversation[],
-    listeners: {} as Record<string, Set<(data: any) => void>>,
     journalEntries: [] as JournalEntry[]
+};
+
+const mockStore = {
+    ...initialStore,
+    listeners: {} as Record<string, Set<(data: unknown) => void>>,
+    deletedGoalIds: new Set<string>()
 };
 
 // Initialize mock conversations with Sarah and David if empty
@@ -105,12 +154,13 @@ if (mockStore.conversations.length === 0) {
             createdAt: new Date()
         }];
     });
+    saveMockStore(); // Save initial state
 }
 
 // Helper to notify listeners
-const notifyListeners = (key: string, data: any) => {
+const notifyListeners = (key: string, data: unknown) => {
     if (mockStore.listeners[key]) {
-        mockStore.listeners[key].forEach(cb => cb(data));
+        mockStore.listeners[key].forEach((cb: (data: unknown) => void) => cb(data));
     }
 };
 
@@ -160,8 +210,11 @@ export const firestoreService = {
     },
 
     deleteGoal: async (goalId: string): Promise<void> => {
-        if (goalId.startsWith('mock-goal-')) {
-            console.log("Mock User: 'Deleting' goal locally.");
+        // Handle mock goals - track as deleted
+        if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            console.log("Mock User: Deleting mock goal:", goalId);
+            mockStore.deletedGoalIds.add(goalId);
+            saveMockStore();
             return;
         }
         try {
@@ -175,10 +228,8 @@ export const firestoreService = {
 
     getUserGoals: async (userId: string): Promise<SavedGoal[]> => {
         if (userId === MOCK_USER.uid) {
-            console.log("Mock User: Returning empty goals list or should we return mock goals? Returning empty for now to start fresh or MOCK_GOALS.");
-            // Optional: Return MOCK_GOALS for the mock user to populate the dashboard?
-            // Let's return MOCK_GOALS if the user is the mock user, so the dashboard isn't empty.
-            return MOCK_GOALS;
+            console.log("Mock User: Returning mock goals filtered by deleted IDs.");
+            return MOCK_GOALS.filter(g => !mockStore.deletedGoalIds.has(g.id || ''));
         }
         try {
             const q = query(collection(db, 'goals'), where('userId', '==', userId));
@@ -196,6 +247,10 @@ export const firestoreService = {
     },
 
     getGoalById: async (goalId: string): Promise<SavedGoal | null> => {
+        // Check if mock goal was deleted
+        if (mockStore.deletedGoalIds.has(goalId)) {
+            return null;
+        }
         // Mock check
         if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
             const allMockGoals = [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS];
@@ -308,6 +363,7 @@ export const firestoreService = {
                 allUsers = snapshot.docs.map(doc => doc.data() as UserProfile);
             } catch (firestoreError) {
                 // Silently fail on firestore errors
+                void firestoreError;
             }
 
             const searchLower = searchTerm.toLowerCase();
@@ -360,6 +416,7 @@ export const firestoreService = {
                     }
                 } catch (error) {
                     // ignore individual failures
+                    void error;
                 }
                 return null;
             });
@@ -397,6 +454,7 @@ export const firestoreService = {
                 createdAt: toDate(doc.data().createdAt)
             } as Message));
         } catch (error) {
+            void error;
             return [];
         }
     },
@@ -416,7 +474,7 @@ export const firestoreService = {
 
         if (isMockReference) {
             // Ensure conversation exists in mock store
-            const existing = mockStore.conversations.find(c => c.id === convId);
+            const existing = mockStore.conversations.find((c: Conversation) => c.id === convId);
             if (!existing) {
                 const newConv: Conversation = {
                     id: convId,
@@ -431,9 +489,11 @@ export const firestoreService = {
                 // Initialize message store
                 if (!mockStore.messages[convId]) mockStore.messages[convId] = [];
 
+                saveMockStore(); // Persist changes
+
                 // Notify conversation listeners
                 participantIds.forEach(uid => {
-                    notifyListeners(`conv_${uid}`, mockStore.conversations.filter(c => c.participantIds.includes(uid)));
+                    notifyListeners(`conv_${uid}`, mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(uid)));
                 });
             }
             return convId;
@@ -468,16 +528,19 @@ export const firestoreService = {
 
     sendMessage: async (conversationId: string, message: Partial<Message>): Promise<void> => {
         // Mock / In-Memory Handler
-        if (conversationId.includes('dummy_') || conversationId.includes(MOCK_USER.uid) || mockStore.conversations.find(c => c.id === conversationId)) {
+        if (conversationId.includes('dummy_') || conversationId.includes(MOCK_USER.uid) || mockStore.conversations.find((c: Conversation) => c.id === conversationId)) {
 
             const newMessage = { ...message, id: `msg-${Date.now()}`, createdAt: new Date() } as Message;
 
             // 1. Add to message store
             if (!mockStore.messages[conversationId]) mockStore.messages[conversationId] = [];
+            // 1. Add to message store
+            if (!mockStore.messages[conversationId]) mockStore.messages[conversationId] = [];
             mockStore.messages[conversationId].push(newMessage);
+            saveMockStore(); // Persist changes
 
             // 2. Update conversation metadata
-            const convIndex = mockStore.conversations.findIndex(c => c.id === conversationId);
+            const convIndex = mockStore.conversations.findIndex((c: Conversation) => c.id === conversationId);
             if (convIndex >= 0) {
                 const conv = mockStore.conversations[convIndex];
                 conv.lastMessage = message.text;
@@ -485,7 +548,7 @@ export const firestoreService = {
                 conv.updatedAt = new Date();
 
                 // Update unread counts
-                conv.participantIds.forEach(pid => {
+                conv.participantIds.forEach((pid: string) => {
                     if (pid !== message.senderId) {
                         conv.unreadCounts = conv.unreadCounts || {};
                         conv.unreadCounts[pid] = (conv.unreadCounts[pid] || 0) + 1;
@@ -495,10 +558,11 @@ export const firestoreService = {
                 // Notify listeners
                 notifyListeners(`msg_${conversationId}`, mockStore.messages[conversationId]);
                 // Notify conversation list listeners for all participants involved
-                conv.participantIds.forEach(uid => {
-                    notifyListeners(`conv_${uid}`, mockStore.conversations.filter(c => c.participantIds.includes(uid)).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                conv.participantIds.forEach((uid: string) => {
+                    notifyListeners(`conv_${uid}`, mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(uid)).sort((a: Conversation, b: Conversation) => b.updatedAt.getTime() - a.updatedAt.getTime()));
                 });
             }
+            saveMockStore(); // Persist changes
 
             return;
         }
@@ -536,14 +600,15 @@ export const firestoreService = {
 
     markConversationAsRead: async (conversationId: string, userId: string): Promise<void> => {
         // Mock Handler
-        const mockConv = mockStore.conversations.find(c => c.id === conversationId);
+        const mockConv = mockStore.conversations.find((c: Conversation) => c.id === conversationId);
         if (mockConv) {
             if (mockConv.unreadCounts) {
                 mockConv.unreadCounts[userId] = 0;
             }
+            saveMockStore(); // Persist changes
             // Notify conversation list listeners to update badges
-            mockConv.participantIds.forEach(uid => {
-                notifyListeners(`conv_${uid}`, mockStore.conversations.filter(c => c.participantIds.includes(uid)).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+            mockConv.participantIds.forEach((uid: string) => {
+                notifyListeners(`conv_${uid}`, mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(uid)).sort((a: Conversation, b: Conversation) => b.updatedAt.getTime() - a.updatedAt.getTime()));
             });
             return;
         }
@@ -560,6 +625,7 @@ export const firestoreService = {
             }
         } catch (error) {
             // ignore
+            void error;
         }
     },
 
@@ -592,10 +658,10 @@ export const firestoreService = {
 
                 // Merge with mock conversations (if any local ones exist)
                 // Filter mocks for this user
-                const mocks = mockStore.conversations.filter(c => c.participantIds.includes(userId));
+                const mocks = mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(userId));
                 // Dedupe: favors real over mock if conflict (unlikely given ID generation)
                 const combined = [...realConvs];
-                mocks.forEach(m => {
+                mocks.forEach((m: Conversation) => {
                     if (!combined.some(r => r.id === m.id)) combined.push(m);
                 });
 
@@ -604,12 +670,12 @@ export const firestoreService = {
             }, (error) => {
                 console.warn("Firestore sub failed (using mock store):", error);
                 // Fallback to purely mock store
-                const mocks = mockStore.conversations.filter(c => c.participantIds.includes(userId));
-                callback(mocks.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                const mocks = mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(userId));
+                callback(mocks.sort((a: Conversation, b: Conversation) => b.updatedAt.getTime() - a.updatedAt.getTime()));
             });
         } catch (e) {
             console.warn("Firestore setup failed:", e);
-            const mocks = mockStore.conversations.filter(c => c.participantIds.includes(userId));
+            const mocks = mockStore.conversations.filter((c: Conversation) => c.participantIds.includes(userId));
             callback(mocks);
         }
 
@@ -635,7 +701,7 @@ export const firestoreService = {
         let unsubFirestore: (() => void) | null = null;
 
         // Only try Firestore if it's NOT a mock conversation
-        const isMockConv = mockStore.conversations.some(c => c.id === conversationId);
+        const isMockConv = mockStore.conversations.some((c: Conversation) => c.id === conversationId);
 
         if (!isMockConv) {
             try {
@@ -651,6 +717,7 @@ export const firestoreService = {
                     } as Message));
                     callback(messages);
                 }, (_error) => {
+                    void _error;
                     // Fallback to mock message store if exists
                     if (mockStore.messages[conversationId]) {
                         callback(mockStore.messages[conversationId]);
@@ -660,6 +727,7 @@ export const firestoreService = {
                     }
                 });
             } catch (e) {
+                void e;
                 if (mockStore.messages[conversationId]) {
                     callback(mockStore.messages[conversationId]);
                 }
@@ -689,7 +757,9 @@ export const firestoreService = {
 
             // Initialize store if needed (though we init above)
             if (!mockStore.journalEntries) mockStore.journalEntries = [];
+            if (!mockStore.journalEntries) mockStore.journalEntries = [];
             mockStore.journalEntries.push(newEntry);
+            saveMockStore(); // Persist changes
 
             return newId;
         }
@@ -711,8 +781,8 @@ export const firestoreService = {
         // Mock Handler
         if (goalId.startsWith('mock-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
             return (mockStore.journalEntries || [])
-                .filter(e => e.goalId === goalId)
-                .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+                .filter((e: JournalEntry) => e.goalId === goalId)
+                .sort((a: JournalEntry, b: JournalEntry) => b.createdAt.getTime() - a.createdAt.getTime());
         }
 
         try {
@@ -738,8 +808,8 @@ export const firestoreService = {
         // Mock Handler
         if (goalId.startsWith('mock-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
             return (mockStore.journalEntries || [])
-                .filter(e => e.goalId === goalId && e.milestoneIndex === milestoneIndex)
-                .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+                .filter((e: JournalEntry) => e.goalId === goalId && e.milestoneIndex === milestoneIndex)
+                .sort((a: JournalEntry, b: JournalEntry) => b.createdAt.getTime() - a.createdAt.getTime());
         }
 
         try {
@@ -765,13 +835,14 @@ export const firestoreService = {
     async updateJournalEntry(entryId: string, updates: Partial<JournalEntry>): Promise<void> {
         // Mock Handler
         if (entryId.startsWith('mock-entry-') || entryId.startsWith('journal-')) {
-            const index = mockStore.journalEntries?.findIndex(e => e.id === entryId);
+            const index = mockStore.journalEntries?.findIndex((e: JournalEntry) => e.id === entryId);
             if (index !== undefined && index !== -1 && mockStore.journalEntries) {
                 mockStore.journalEntries[index] = {
                     ...mockStore.journalEntries[index],
                     ...updates,
                     updatedAt: new Date()
                 };
+                saveMockStore(); // Persist changes
             }
             return;
         }
@@ -792,7 +863,8 @@ export const firestoreService = {
         // Mock Handler
         if (entryId.startsWith('mock-entry-') || entryId.startsWith('journal-')) {
             if (mockStore.journalEntries) {
-                mockStore.journalEntries = mockStore.journalEntries.filter(e => e.id !== entryId);
+                mockStore.journalEntries = mockStore.journalEntries.filter((e: JournalEntry) => e.id !== entryId);
+                saveMockStore(); // Persist changes
             }
             return;
         }
@@ -843,6 +915,234 @@ export const firestoreService = {
             return !isFriend;
         } catch (error) {
             console.error("Error toggling friend:", error);
+            throw error;
+        }
+    },
+
+    // ===== DATE CHANGE & PAUSE FUNCTIONALITY =====
+
+    /**
+     * Update a milestone's date and record the change in history
+     */
+    async updateMilestoneDate(
+        goalId: string,
+        milestoneIndex: number,
+        newDate: string,
+        dateChange: {
+            id: string;
+            previousDate: string;
+            newDate: string;
+            changedAt: number;
+            reason: string;
+            explanation: string;
+            changeType: 'extend' | 'reschedule' | 'pause_resume';
+            daysDiff: number;
+        }
+    ): Promise<void> {
+        // Mock handling
+        if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            console.log("Mock User: Recording date change for milestone", milestoneIndex, dateChange);
+            // In a real implementation, we'd update the mock store
+            return;
+        }
+
+        try {
+            const goalRef = doc(db, 'goals', goalId);
+            const goalSnap = await getDoc(goalRef);
+
+            if (!goalSnap.exists()) {
+                throw new Error('Goal not found');
+            }
+
+            const goalData = goalSnap.data();
+            const plan = goalData.plan as GeneratedPlan;
+            const timeline = [...plan.timeline];
+
+            // Update the milestone date
+            if (timeline[milestoneIndex]) {
+                const milestone = { ...timeline[milestoneIndex] };
+                milestone.date = newDate;
+
+                // Initialize or append to date history
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const existingHistory = (milestone as any).dateHistory || [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (milestone as any).dateHistory = [...existingHistory, dateChange];
+
+                timeline[milestoneIndex] = milestone;
+            }
+
+            // Update the plan with modified timeline
+            const updatedPlan = { ...plan, timeline };
+            await updateDoc(goalRef, { plan: sanitizeData(updatedPlan) });
+        } catch (error) {
+            console.error("Error updating milestone date:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Pause a goal - records pause timestamp and reason
+     */
+    async pauseGoal(
+        goalId: string,
+        reason: string,
+        reasonCategory: 'health' | 'family' | 'work' | 'travel' | 'mental' | 'other'
+    ): Promise<void> {
+        // Mock handling
+        if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            console.log("Mock User: Pausing goal", goalId, reason);
+            return;
+        }
+
+        try {
+            const goalRef = doc(db, 'goals', goalId);
+            await updateDoc(goalRef, {
+                status: 'paused',
+                pausedAt: Date.now(),
+                pauseReason: reason,
+                pauseReasonCategory: reasonCategory
+            });
+        } catch (error) {
+            console.error("Error pausing goal:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Update a milestone's steps
+     */
+    async updateMilestoneSteps(
+        goalId: string,
+        milestoneIndex: number,
+        steps: { text: string; date: string; habit?: string }[],
+        stepChanges: {
+            id: string;
+            changeType: 'add' | 'remove' | 'edit' | 'reorder';
+            changedAt: number;
+            stepIndex: number;
+            previousValue?: { text?: string; date?: string; habit?: string };
+            newValue?: { text?: string; date?: string; habit?: string };
+        }[]
+    ): Promise<void> {
+        // Mock handling
+        if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            console.log("Mock User: Updating steps for milestone", milestoneIndex, steps);
+            return;
+        }
+
+        try {
+            const goalRef = doc(db, 'goals', goalId);
+            const goalSnap = await getDoc(goalRef);
+
+            if (!goalSnap.exists()) {
+                throw new Error('Goal not found');
+            }
+
+            const goalData = goalSnap.data();
+            const plan = goalData.plan as GeneratedPlan;
+            const timeline = [...plan.timeline];
+
+            // Update the milestone steps
+            if (timeline[milestoneIndex]) {
+                const milestone = { ...timeline[milestoneIndex] };
+                milestone.steps = steps;
+
+                // Initialize or append to step history
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const existingHistory = (milestone as any).stepHistory || [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (milestone as any).stepHistory = [...existingHistory, ...stepChanges];
+
+                timeline[milestoneIndex] = milestone;
+            }
+
+            // Update the plan with modified timeline
+            const updatedPlan = { ...plan, timeline };
+            await updateDoc(goalRef, { plan: sanitizeData(updatedPlan) });
+        } catch (error) {
+            console.error("Error updating milestone steps:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Resume a paused goal - shifts all milestone dates forward by pause duration
+     */
+    async resumeGoal(goalId: string): Promise<{ daysShifted: number }> {
+        // Mock handling
+        if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
+            console.log("Mock User: Resuming goal", goalId);
+            return { daysShifted: 0 };
+        }
+
+        try {
+            const goalRef = doc(db, 'goals', goalId);
+            const goalSnap = await getDoc(goalRef);
+
+            if (!goalSnap.exists()) {
+                throw new Error('Goal not found');
+            }
+
+            const goalData = goalSnap.data();
+            const pausedAt = goalData.pausedAt as number;
+            const pauseReason = goalData.pauseReason as string;
+            const pauseReasonCategory = goalData.pauseReasonCategory as string;
+
+            if (!pausedAt) {
+                throw new Error('Goal is not paused');
+            }
+
+            // Calculate days paused
+            const now = Date.now();
+            const daysShifted = Math.ceil((now - pausedAt) / (1000 * 60 * 60 * 24));
+
+            // Shift all milestone dates forward
+            const plan = goalData.plan as GeneratedPlan;
+            const timeline = plan.timeline.map(milestone => {
+                const currentDate = new Date(milestone.date + 'T00:00:00');
+                currentDate.setDate(currentDate.getDate() + daysShifted);
+                const newDate = currentDate.toISOString().split('T')[0];
+
+                // Also shift step dates
+                const steps = milestone.steps?.map(step => {
+                    if (step.date) {
+                        const stepDate = new Date(step.date + 'T00:00:00');
+                        stepDate.setDate(stepDate.getDate() + daysShifted);
+                        return { ...step, date: stepDate.toISOString().split('T')[0] };
+                    }
+                    return step;
+                });
+
+                return { ...milestone, date: newDate, steps };
+            });
+
+            // Create pause history record
+            const pauseRecord = {
+                id: `pause-${pausedAt}`,
+                pausedAt,
+                resumedAt: now,
+                reason: pauseReason,
+                reasonCategory: pauseReasonCategory,
+                daysShifted
+            };
+
+            // Get existing pause history or initialize
+            const existingPauseHistory = goalData.pauseHistory || [];
+
+            // Update the goal
+            await updateDoc(goalRef, {
+                status: 'active',
+                pausedAt: null,
+                pauseReason: null,
+                pauseReasonCategory: null,
+                pauseHistory: [...existingPauseHistory, pauseRecord],
+                plan: sanitizeData({ ...plan, timeline })
+            });
+
+            return { daysShifted };
+        } catch (error) {
+            console.error("Error resuming goal:", error);
             throw error;
         }
     }

@@ -195,7 +195,16 @@ export const MessagingDrawer: React.FC = () => {
                                         <>
                                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-indigo to-brand-purple flex items-center justify-center text-white text-sm font-bold overflow-hidden">
                                                 {activeOtherUser.photoURL ? (
-                                                    <img src={activeOtherUser.photoURL} alt={activeOtherUser.displayName} className="w-full h-full object-cover" />
+                                                    <img
+                                                        src={activeOtherUser.photoURL}
+                                                        alt={activeOtherUser.displayName}
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.onerror = null;
+                                                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activeOtherUser.displayName || 'User')}&background=random`;
+                                                        }}
+                                                        className="w-full h-full object-cover"
+                                                    />
                                                 ) : (
                                                     activeOtherUser.displayName?.[0]?.toUpperCase() || 'U'
                                                 )}
@@ -251,6 +260,11 @@ export const MessagingDrawer: React.FC = () => {
                                                                 <img
                                                                     src={otherUser.photoURL}
                                                                     alt={otherUser.displayName}
+                                                                    onError={(e) => {
+                                                                        const target = e.target as HTMLImageElement;
+                                                                        target.onerror = null;
+                                                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.displayName || 'User')}&background=random`;
+                                                                    }}
                                                                     className="w-full h-full object-cover"
                                                                 />
                                                             ) : (

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Globe, Sliders, Check, AlertCircle, Volume2, Shield } from 'lucide-react';
+import { X, Globe, Sliders, Check, AlertCircle, Volume2, Shield, Sparkles } from 'lucide-react';
 
 import { createPortal } from 'react-dom';
 
@@ -8,6 +8,7 @@ interface UserPreferences {
     publicProfile: boolean;
     soundEnabled?: boolean;
     analyticsEnabled?: boolean;
+    includeProfileInVisions?: boolean;
 }
 
 interface PreferencesModalProps {
@@ -27,7 +28,19 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
         publicProfile: preferences.publicProfile,
         soundEnabled: preferences.soundEnabled ?? true,
         analyticsEnabled: preferences.analyticsEnabled ?? true,
+        includeProfileInVisions: preferences.includeProfileInVisions ?? false,
     });
+
+    useEffect(() => {
+        if (isOpen) {
+            setLocalPrefs({
+                publicProfile: preferences.publicProfile,
+                soundEnabled: preferences.soundEnabled ?? true,
+                analyticsEnabled: preferences.analyticsEnabled ?? true,
+                includeProfileInVisions: preferences.includeProfileInVisions ?? false,
+            });
+        }
+    }, [isOpen, preferences]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +59,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
     };
 
     const togglePref = (key: keyof typeof localPrefs) => {
+        console.log(`Toggling preference: ${key}`);
         setLocalPrefs(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
@@ -58,7 +72,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
+                        className="fixed inset-0 modal-backdrop-macos z-[9998]"
                     />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -67,8 +81,8 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] h-[700px] z-[9999] p-4 pointer-events-none"
                     >
                         <div
-                            className="bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full pointer-events-auto text-slate-900"
-                            style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                            className="modal-macos rounded-2xl overflow-hidden flex flex-col h-full pointer-events-auto text-slate-900"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', color: '#000000' }}
                         >
                             <div className="p-8 pb-4 flex-shrink-0 flex items-center justify-between">
                                 <div className="flex-1" />
@@ -88,63 +102,51 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
 
                             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-8 pb-8 flex flex-col gap-4">
                                 {/* Public Profile */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 mt-4">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
-                                        <div className="p-2 bg-blue-100 rounded-lg shrink-0">
-                                            <Globe className="w-4 h-4 text-blue-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Public Profile</p>
-                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Allow others to see your vision board</p>
-                                        </div>
+                                <div
+                                    role="button"
+                                    onClick={() => togglePref('publicProfile')}
+                                    className={`w-full flex items-center justify-center p-4 rounded-xl border-2 mt-4 cursor-pointer transition-all group select-none gap-3 active:scale-95 ${localPrefs.publicProfile ? 'bg-blue-100/80 border-blue-500 shadow-md' : 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'}`}
+                                >
+                                    <div className={`p-2 rounded-lg shrink-0 transition-transform ${localPrefs.publicProfile ? 'bg-blue-500 scale-110' : 'bg-slate-200 group-hover:scale-110'}`}>
+                                        <Globe className={`w-4 h-4 ${localPrefs.publicProfile ? 'text-white' : 'text-slate-500'}`} />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => togglePref('publicProfile')}
-                                        className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${localPrefs.publicProfile ? 'bg-blue-500' : 'bg-slate-300'}`}
-                                    >
-                                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm ${localPrefs.publicProfile ? 'left-7' : 'left-1'}`} />
-                                    </button>
+                                    <p className={`font-bold whitespace-nowrap ${localPrefs.publicProfile ? 'text-blue-900' : 'text-slate-900'}`}>Public Profile</p>
                                 </div>
 
                                 {/* Sound Effects */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
-                                        <div className="p-2 bg-pink-100 rounded-lg shrink-0">
-                                            <Volume2 className="w-4 h-4 text-pink-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Sound Effects</p>
-                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Play interaction sounds</p>
-                                        </div>
+                                <div
+                                    role="button"
+                                    onClick={() => togglePref('soundEnabled')}
+                                    className={`w-full flex items-center justify-center p-4 rounded-xl border-2 mt-4 cursor-pointer transition-all group select-none gap-3 active:scale-95 ${localPrefs.soundEnabled ? 'bg-pink-100/80 border-pink-500 shadow-md' : 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'}`}
+                                >
+                                    <div className={`p-2 rounded-lg shrink-0 transition-transform ${localPrefs.soundEnabled ? 'bg-pink-500 scale-110' : 'bg-slate-200 group-hover:scale-110'}`}>
+                                        <Volume2 className={`w-4 h-4 ${localPrefs.soundEnabled ? 'text-white' : 'text-slate-500'}`} />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => togglePref('soundEnabled')}
-                                        className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${localPrefs.soundEnabled ? 'bg-pink-500' : 'bg-slate-300'}`}
-                                    >
-                                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm ${localPrefs.soundEnabled ? 'left-7' : 'left-1'}`} />
-                                    </button>
+                                    <p className={`font-bold whitespace-nowrap ${localPrefs.soundEnabled ? 'text-pink-900' : 'text-slate-900'}`}>Sound Effects</p>
                                 </div>
 
                                 {/* Analytics */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
-                                        <div className="p-2 bg-green-100 rounded-lg shrink-0">
-                                            <Shield className="w-4 h-4 text-green-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">Analytics</p>
-                                            <p className="text-xs text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">Share anonymous usage data</p>
-                                        </div>
+                                <div
+                                    role="button"
+                                    onClick={() => togglePref('analyticsEnabled')}
+                                    className={`w-full flex items-center justify-center p-4 rounded-xl border-2 mt-4 cursor-pointer transition-all group select-none gap-3 active:scale-95 ${localPrefs.analyticsEnabled ? 'bg-green-100/80 border-green-500 shadow-md' : 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'}`}
+                                >
+                                    <div className={`p-2 rounded-lg shrink-0 transition-transform ${localPrefs.analyticsEnabled ? 'bg-green-500 scale-110' : 'bg-slate-200 group-hover:scale-110'}`}>
+                                        <Shield className={`w-4 h-4 ${localPrefs.analyticsEnabled ? 'text-white' : 'text-slate-500'}`} />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => togglePref('analyticsEnabled')}
-                                        className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${localPrefs.analyticsEnabled ? 'bg-green-500' : 'bg-slate-300'}`}
-                                    >
-                                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm ${localPrefs.analyticsEnabled ? 'left-7' : 'left-1'}`} />
-                                    </button>
+                                    <p className={`font-bold whitespace-nowrap ${localPrefs.analyticsEnabled ? 'text-green-900' : 'text-slate-900'}`}>Analytics</p>
+                                </div>
+
+                                {/* Include Profile in Visions */}
+                                <div
+                                    role="button"
+                                    onClick={() => togglePref('includeProfileInVisions')}
+                                    className={`w-full flex items-center justify-center p-4 rounded-xl border-2 mt-4 cursor-pointer transition-all group select-none gap-3 active:scale-95 ${localPrefs.includeProfileInVisions ? 'bg-purple-100/80 border-purple-500 shadow-md' : 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'}`}
+                                >
+                                    <div className={`p-2 rounded-lg shrink-0 transition-transform ${localPrefs.includeProfileInVisions ? 'bg-purple-500 scale-110' : 'bg-slate-200 group-hover:scale-110'}`}>
+                                        <Sparkles className={`w-4 h-4 ${localPrefs.includeProfileInVisions ? 'text-white' : 'text-slate-500'}`} />
+                                    </div>
+                                    <p className={`font-bold whitespace-nowrap ${localPrefs.includeProfileInVisions ? 'text-purple-900' : 'text-slate-900'}`}>Personalized Visions</p>
                                 </div>
 
                                 {error && (

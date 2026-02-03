@@ -18,6 +18,14 @@ vi.mock('@google/generative-ai', () => {
                 startChat: mockStartChat,
             });
         },
+        SchemaType: {
+            STRING: 'STRING',
+            NUMBER: 'NUMBER',
+            INTEGER: 'INTEGER',
+            BOOLEAN: 'BOOLEAN',
+            ARRAY: 'ARRAY',
+            OBJECT: 'OBJECT',
+        },
     };
 });
 
@@ -53,6 +61,6 @@ describe('geminiService', () => {
             }
         });
 
-        await expect(geminiService.generatePlan('Fail please')).rejects.toThrow("AI response was not valid JSON");
+        await expect(geminiService.generatePlan('Fail please')).rejects.toThrow("Failed to generate plan. Please try again.");
     });
 });

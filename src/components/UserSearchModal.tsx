@@ -53,7 +53,7 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({ isOpen, onClos
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
-                    className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
+                    className="absolute inset-0 modal-backdrop-macos pointer-events-auto"
                 />
 
                 {/* Modal - pointer-events-auto */}
@@ -61,7 +61,7 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({ isOpen, onClos
                     initial={{ opacity: 0, scale: 0.95, x: 20 }}
                     animate={{ opacity: 1, scale: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.95, x: 20 }}
-                    className="relative w-[90vw] max-w-[450px] max-h-[600px] !bg-white !text-black rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col pointer-events-auto"
+                    className="relative w-[90vw] max-w-[450px] max-h-[600px] modal-macos rounded-2xl !text-black flex flex-col pointer-events-auto"
                 >
                     {/* Header */}
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">

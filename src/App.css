@@ -1,3 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
+
+:root {
+  /* --- Typography Tokens --- */
+
+  /* Fonts */
+  /* Display: 'Audiowide' for that cosmic/techno/psychedelic feel */
+  --font-display: 'Audiowide', cursive;
+  /* Body: 'Outfit' (from your index.html) for clean readability */
+  --font-body: 'Outfit', system-ui, sans-serif;
+
+  /* Scale: Major Third (1.25) */
+  --base-size: 1rem;
+  /* 16px */
+
+  /* Font Sizes */
+  --text-caption: 0.64rem;
+  --text-small: 0.8rem;
+  --text-body: 1rem;
+  --text-body-lg: 1.25rem;
+
+  /* Headings */
+  --text-h6: 1.25rem;
+  --text-h5: 1.563rem;
+  --text-h4: 1.953rem;
+  --text-h3: 2.441rem;
+  --text-h2: 3.052rem;
+  --text-h1: 3.815rem;
+
+  /* Line Heights */
+  --lh-body: 1.6;
+  --lh-heading: 1.1;
+
+  /* Weights */
+  --fw-regular: 400;
+  --fw-bold: 700;
+
+  /* --- Theme Colors (Cosmic/Psychedelic) --- */
+  --color-bg-deep: #0b0d17;
+  --color-text-main: #e2e8f0;
+  --color-text-muted: #94a3b8;
+
+  /* Neons */
+  --color-neon-pink: #d946ef;
+  --color-neon-cyan: #06b6d4;
+  --color-neon-purple: #8b5cf6;
+
+  --color-glow: rgba(217, 70, 239, 0.4);
+}
+
+/* Global Reset & Background */
+body {
+  margin: 0;
+  background-color: var(--color-bg-deep);
+  color: var(--color-text-main);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+
+  /* Cosmic Background */
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.1) 0%, transparent 30%),
+    linear-gradient(to bottom, #0b0d17 0%, #1a1b26 100%);
+  min-height: 100vh;
+}
+
+/* --- Typography Utilities --- */
+
+/* Body & Utilities */
+.text-caption {
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text-small {
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+}
+
+.text-body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+}
+
+.text-body-lg {
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+}
+
+/* Headings (Display Font + Clamp + Glow) */
+.text-h1,
+.text-h2,
+.text-h3,
+.text-h4,
+.text-h5,
+.text-h6 {
+  font-family: var(--font-display);
+  line-height: var(--lh-heading);
+  margin-block: 0.5em;
+  color: #fff;
+  text-shadow: 0 0 12px var(--color-glow);
+  font-weight: var(--fw-regular);
+}
+
+.text-h6 {
+  font-size: clamp(1rem, 2vw, var(--text-h6));
+}
+
+.text-h5 {
+  font-size: clamp(1.25rem, 2.5vw, var(--text-h5));
+}
+
+.text-h4 {
+  font-size: clamp(1.5rem, 3vw, var(--text-h4));
+}
+
+.text-h3 {
+  font-size: clamp(1.75rem, 4vw, var(--text-h3));
+}
+
+.text-h2 {
+  font-size: clamp(2rem, 5vw, var(--text-h2));
+}
+
+.text-h1 {
+  font-size: clamp(2.5rem, 7vw, var(--text-h1));
+}
+
+
+/* --- Existing CSS Refactor --- */
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -11,17 +146,21 @@
   will-change: filter;
   transition: filter 300ms;
 }
+
+/* Updated hover effects to match cosmic palette */
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 2em var(--color-neon-purple));
 }
+
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+  filter: drop-shadow(0 0 2em var(--color-neon-cyan));
 }
 
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -35,8 +174,37 @@
 
 .card {
   padding: 2em;
+  /* Glassmorphism for card */
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  backdrop-filter: blur(5px);
+  margin-top: 2rem;
 }
 
 .read-the-docs {
-  color: #888;
+  /* Using tokens as requested */
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  color: var(--color-text-muted);
+}
+
+/* --- macOS Modal System --- */
+.modal-backdrop-macos {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.modal-macos {
+  /* Visual Style */
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 24px 72px -12px rgba(0, 0, 0, 0.4),
+    0 12px 24px -8px rgba(0, 0, 0, 0.2) !important;
+
+  /* Shape */
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
 }
