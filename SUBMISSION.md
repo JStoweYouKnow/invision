@@ -35,3 +35,11 @@ InVision doesn't just list tasks; it creates a "memory of the future," helping u
 5.  **Outro (2:45 - 3:00)**:
     *   *Visual*: Quick montage of mobile view / "Sync to Calendar".
     *   *Voiceover*: "InVision. Dream it. See it. Do it."
+
+## Demo Recording
+
+**File**: `invision_demo.webp`
+**Path**: `./invision_demo.webp`
+
+> [!NOTE] 
+> This recording covers the full flow: Vision Generation, Timeline exploration, Milestone editing, and Social features.
