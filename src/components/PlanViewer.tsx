@@ -30,6 +30,7 @@ interface PlanViewerProps {
     goalId?: string;
     onDelete?: () => void;
     onProgressChange?: (completed: number, total: number) => void;
+    onUpdateVisionImage?: (newUrl: string) => void; // New prop for image updates
     isReadOnly?: boolean; // Prevents milestone/step completion for non-owners
     authorName?: string; // Goal owner's name for header display
     // Pause functionality
@@ -56,7 +57,6 @@ interface PlanViewerProps {
 //     { text: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar" }
 // ];
 
-import { calendarService } from '@/lib/calendar';
 
 export const PlanViewer: React.FC<PlanViewerProps> = ({
     plan,
@@ -69,6 +69,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
     goalId,
     onDelete,
     onProgressChange,
+    onUpdateVisionImage,
     isReadOnly = false,
     authorName,
     // Pause props
@@ -86,7 +87,6 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
 
     // const { user } = useAuth();
     const [viewMode, setViewMode] = useState<'timeline' | 'calendar' | 'vision'>('vision'); // Debug: default to vision
-    const [isSyncing, setIsSyncing] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [showPauseModal, setShowPauseModal] = useState(false);
     const exportRef = useRef<HTMLDivElement>(null);
@@ -109,11 +109,11 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         // UNLESS it's already a pollinations URL (in which case we just update the seed on it).
         const isPollinations = baseSource?.includes('pollinations.ai');
 
-        if (seed > 0 && !isPollinations) {
+        if (seed > 0) {
             // User wants remix, but we have a non-pollinations static image.
             // Generate a fresh one using the seed.
-            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k, wide angle`);
-            return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
+            const prompt = encodeURIComponent(`cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k`);
+            return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1280&nologo=true&seed=${seed}`;
         }
 
         // Force generation if it's a placeholder OR if we don't have a source
@@ -121,17 +121,23 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
             // Fallback to fresh generation if it was a placeholder
             // Use a stable seed based on the title length if seed is 0 to ensure consistent but dynamic initial image
             const effectiveSeed = seed > 0 ? seed : (plan.title.length + 42);
-            const prompt = encodeURIComponent(`wide cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k, wide angle`);
-            return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true&seed=${effectiveSeed}`;
+            const prompt = encodeURIComponent(`cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k`);
+            return `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1280&nologo=true&seed=${effectiveSeed}`;
         }
 
         // If it's a pollinations URL
         if (isPollinations) {
             try {
                 const url = new URL(baseSource!);
-                // Force square aspect ratio for the new design, refreshing the composition
+                // Force portrait aspect ratio for the new design (4:5)
                 url.searchParams.set('width', '1024');
-                url.searchParams.set('height', '1024');
+                url.searchParams.set('height', '1280');
+
+                // Fix legacy "wide" prompts for styling consistency to match portrait card
+                if (url.pathname.includes('wide%20cinematic%20shot') || url.pathname.includes('wide%20angle')) {
+                    const cleanPrompt = encodeURIComponent(`cinematic shot of ${plan.title}, photorealistic, natural lighting, inspirational, highly detailed, 8k`);
+                    url.pathname = `/prompt/${cleanPrompt}`;
+                }
 
                 // Only modify seed if we have a NEW local seed (regenerated)
                 if (seed > 0) {
@@ -154,9 +160,94 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
     // const quoteIndex = imgSeed % QUOTES.length;
     // const currentQuote = QUOTES[quoteIndex] || QUOTES[0]; // Fallback safety
 
+
     const { currentTheme } = useTheme();
     // cast currentTheme.id to string to avoid type error if strict unions don't overlap
     // cast currentTheme.id to string to avoid type error if strict unions don't overlap
+
+
+    // Local state to hold the CURRENTLY displayed image URL.
+    const [currentImageSrc, setCurrentImageSrc] = useState(displayImage);
+    const [imageLoading, setImageLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+    // Track retry attempts for image loading
+    const [, setRetryCount] = useState(0);
+
+    // Sync local state when prop changes (external update)
+    useEffect(() => {
+        // Only update if the image source actually changed
+        if (currentImageSrc === displayImage) return;
+
+        setCurrentImageSrc(displayImage);
+        setHasError(false);
+
+        // For data URIs, they're already loaded - don't show spinner
+        if (displayImage?.startsWith('data:')) {
+            setImageLoading(false);
+            setRetryCount(0);
+            return;
+        }
+
+        setImageLoading(true);
+
+        // Smart retry reset: If the new image IS the safe fallback or Unsplash,
+        // we shouldn't reset retry count to 0, otherwise we loop if it fails.
+        if (displayImage && (displayImage.includes('galaxy%20vision%20board') || displayImage.includes('galaxy+vision+board'))) {
+            // Already on Safe URL, treat as retry 1 so next failure goes to Unsplash
+            setRetryCount(1);
+        } else if (displayImage && displayImage.includes('unsplash')) {
+            // Already on Unsplash, treat as retry 2
+            setRetryCount(2);
+        } else {
+            // New distinct image, reset
+            setRetryCount(0);
+        }
+
+        // Safety timeout: Clear loading state after 15 seconds no matter what
+        const timeout = setTimeout(() => {
+            setImageLoading(false);
+        }, 15000);
+
+        return () => clearTimeout(timeout);
+    }, [displayImage, currentImageSrc]);
+
+    // Reusable error handler for image loading
+    const handleImageError = () => {
+        // console.warn(`Vision image failed to load (src: ${currentImageSrc}), determining fallback...`);
+
+        // Check local state string directly to strictly enforce fallback progression
+        const isSafeUrl = currentImageSrc.includes('galaxy%20vision%20board') || currentImageSrc.includes('galaxy+vision+board');
+        const isUnsplash = currentImageSrc.includes('unsplash');
+
+        if (isUnsplash) {
+            // console.warn("Already on Unsplash, giving up.");
+            setHasError(true);
+            setImageLoading(false);
+            return;
+        }
+
+        if (isSafeUrl) {
+            // console.warn("Safe URL failed, switching to Unsplash.");
+            const fallbackUrl = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop";
+            setCurrentImageSrc(fallbackUrl);
+            setRetryCount(2);
+            setImageLoading(true); // Keep loading true for retry
+            return;
+        }
+
+        // Default: Try Safe URL
+        // console.warn("First failure, switching to Safe URL.");
+        const safePrompt = encodeURIComponent("galaxy vision board dream cosmic");
+        const safeUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1280&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
+        setCurrentImageSrc(safeUrl);
+        setRetryCount(1);
+        setImageLoading(true); // Keep loading true for retry
+
+        // Try to sync with parent for persistence
+        if (onUpdateVisionImage) {
+            setTimeout(() => onUpdateVisionImage(safeUrl), 100);
+        }
+    };
 
     // ... render ...
 
@@ -412,31 +503,6 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
                                         <Share2 className="w-4 h-4" />
                                         <span className="hidden sm:inline">Share</span>
                                     </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (isSyncing) return;
-                                            try {
-                                                setIsSyncing(true);
-                                                const token = await calendarService.getAccessToken();
-                                                const count = await calendarService.syncToCalendar(plan, token);
-                                                alert(`Successfully synced ${count} events to your Google Calendar!`);
-                                            } catch (error) {
-                                                console.error(error);
-                                                alert('Failed to sync. Please ensure popups are allowed and try again.');
-                                            } finally {
-                                                setIsSyncing(false);
-                                            }
-                                        }}
-                                        disabled={isSyncing}
-                                        className={`btn btn--sm gap-1.5 min-h-[44px] sm:min-h-0 ${isSyncing
-                                            ? 'btn--ghost text-muted-foreground opacity-50 cursor-not-allowed'
-                                            : 'btn--ghost hover:opacity-80'}`}
-                                        style={{ color: isSyncing ? undefined : currentTheme.colors.accent }}
-                                        title="Sync to Calendar"
-                                    >
-                                        <CalendarIcon className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
-                                        <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-                                    </button>
                                     <Tooltip id="export-plan" content="Export Plan" position="bottom">
                                         <button
                                             onClick={() => setShowExportModal(true)}
@@ -525,11 +591,104 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
                                             {/* Left Column: Image (smaller to give more room to content) */}
                                             <div className="w-full md:w-2/5 relative bg-black/40 min-h-[180px] md:min-h-0 shrink-0">
                                                 <img
-                                                    src={displayImage}
+                                                    src={currentImageSrc}
                                                     alt="Vision Visualization"
                                                     className="w-full h-full object-cover absolute inset-0 transform hover:scale-105 transition-transform duration-[2s] ease-in-out"
+                                                    onLoad={(e) => {
+                                                        const img = e.currentTarget;
+                                                        // Check if image is loaded and has dimensions
+                                                        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                                            const aspectRatio = img.naturalWidth / img.naturalHeight;
+                                                            // If aspect ratio is > 1 (wide) or significantly different from 0.8 (4:5 portrait)
+                                                            // BUT skip this check if we are already on the Unsplash fallback, Safe URL, or a data URI (Gemini-generated)
+                                                            const isFallback = currentImageSrc.includes('unsplash') || currentImageSrc.includes('galaxy%20vision%20board') || currentImageSrc.startsWith('data:');
+
+                                                            // Relaxed aspect ratio check to allow square/near-square images
+                                                            // Only correct if significantly wide (landscape) to avoid infinite loops on fallback images
+
+                                                            // LOGGING FOR DEBUGGING
+                                                            console.log('🖼️ [PlanViewer] Image Loaded:', {
+                                                                src: currentImageSrc,
+                                                                width: img.naturalWidth,
+                                                                height: img.naturalHeight,
+                                                                aspectRatio,
+                                                                isFallback,
+                                                                fixSignature: `prompt/${encodeURIComponent(`cinematic shot of ${plan.title}, photorealistic, inspirational, 8k`)}`
+                                                            });
+
+                                                            if (aspectRatio > 1.2 && !isFallback) {
+                                                                // Use a simpler prompt for better stability
+                                                                const sPrompt = encodeURIComponent(`cinematic shot of ${plan.title}, photorealistic, inspirational, 8k`);
+
+                                                                // Check if we already tried this specific fix to prevent loops
+                                                                const fixSignature = `prompt/${sPrompt}`;
+                                                                if (currentImageSrc.includes(fixSignature)) {
+                                                                    console.log('🛑 [PlanViewer] Loop prevention triggered. Keeping current image.');
+                                                                    // We already tried to fix it and got another wide image. Just give up and accept it.
+                                                                    setImageLoading(false);
+                                                                    return;
+                                                                }
+
+                                                                const newSeed = Math.floor(Math.random() * 10000) + 1;
+                                                                const newUrl = `https://image.pollinations.ai/prompt/${sPrompt}?width=1024&height=1280&nologo=true&seed=${newSeed}`;
+
+                                                                // Update local state IMMEDIATELY
+                                                                console.log('🔄 [PlanViewer] Fixing aspect ratio ->', newUrl);
+                                                                setCurrentImageSrc(newUrl);
+                                                                setImageLoading(true);
+
+                                                                if (onUpdateVisionImage && visionImage !== newUrl) {
+                                                                    setTimeout(() => {
+                                                                        onUpdateVisionImage(newUrl);
+                                                                    }, 0);
+                                                                }
+                                                            } else {
+                                                                // Success!
+                                                                console.log('✅ [PlanViewer] Aspect Ratio OK or Fallback. Clearing Spinner.');
+                                                                setImageLoading(false);
+                                                            }
+                                                        } else {
+                                                            // Loaded but 0 dimensions? Treat as error
+                                                            handleImageError();
+                                                        }
+                                                    }}
+                                                    onError={() => {
+                                                        handleImageError();
+                                                    }}
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 md:opacity-30" />
+
+                                                {/* Loading State */}
+                                                {imageLoading && !hasError && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm z-10">
+                                                        <div className="flex flex-col items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                                                            <span className="text-xs font-medium text-white/70 animate-pulse">Generating Vision...</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Error State */}
+                                                {hasError && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
+                                                        <div className="flex flex-col items-center gap-3 p-4 text-center">
+                                                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center mb-1">
+                                                                <Sparkles className="w-5 h-5 text-red-400 opacity-50" />
+                                                            </div>
+                                                            <p className="text-sm text-white/80 font-medium">Image unavailable</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setHasError(false);
+                                                                    setCurrentImageSrc(getDynamicUrl(visionImage, Date.now())); // Force refresh with new seed
+                                                                    setImageLoading(true);
+                                                                }}
+                                                                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white transition-colors border border-white/10"
+                                                            >
+                                                                Retry Generation
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Right Column: Content (larger for full text + resources) */}

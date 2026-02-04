@@ -2,31 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { calendarService } from './calendar';
 import type { GeneratedPlan } from './gemini';
 
-// Mock Firebase auth
-vi.mock('firebase/auth', () => ({
-    GoogleAuthProvider: {
-        credentialFromResult: vi.fn(() => ({ accessToken: 'mock-access-token' })),
-    },
-    signInWithPopup: vi.fn(),
-}));
-
-vi.mock('./firebase', () => ({
-    auth: {},
-    googleProvider: {
-        setCustomParameters: vi.fn(),
-    },
-}));
-
-// Mock fetch globally
-const mockFetch = vi.fn();
-globalThis.fetch = mockFetch;
-
 describe('calendarService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    describe('syncToCalendar', () => {
+    describe('exportToICS', () => {
         const mockPlan: GeneratedPlan = {
             title: 'Learn Piano',
             description: 'A journey to become a pianist',
@@ -52,103 +33,54 @@ describe('calendarService', () => {
             sources: [],
         };
 
-        it('should create calendar events for each milestone', async () => {
-            mockFetch.mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve({ id: 'event-123' }),
-            });
+        // Mock DOM methods for download
+        let createdLink: HTMLAnchorElement;
+        let clickSpy: ReturnType<typeof vi.fn>;
+        let createObjectURLSpy: ReturnType<typeof vi.spyOn>;
+        let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>;
 
-            const count = await calendarService.syncToCalendar(mockPlan, 'mock-token');
+        beforeEach(() => {
+            clickSpy = vi.fn();
+            createdLink = {
+                href: '',
+                download: '',
+                click: clickSpy,
+            } as unknown as HTMLAnchorElement;
 
-            expect(count).toBe(2);
-            expect(mockFetch).toHaveBeenCalledTimes(2);
+            vi.spyOn(document, 'createElement').mockReturnValue(createdLink);
+            vi.spyOn(document.body, 'appendChild').mockImplementation(() => createdLink);
+            vi.spyOn(document.body, 'removeChild').mockImplementation(() => createdLink);
+
+            createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-url');
+            revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
         });
 
-        it('should format events correctly', async () => {
-            mockFetch.mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve({ id: 'event-123' }),
-            });
+        it('should trigger a file download', () => {
+            calendarService.exportToICS(mockPlan, 'Learn Piano');
 
-            await calendarService.syncToCalendar(mockPlan, 'mock-token');
-
-            // Check first call
-            const firstCall = mockFetch.mock.calls[0];
-            const body = JSON.parse(firstCall[1].body);
-
-            expect(body.summary).toBe('InVision: Start Basic Lessons');
-            expect(body.description).toContain('Learn Piano');
-            expect(body.start.date).toBe('2025-03-01');
-            expect(body.reminders.overrides).toHaveLength(2);
+            expect(document.createElement).toHaveBeenCalledWith('a');
+            expect(clickSpy).toHaveBeenCalled();
+            expect(createObjectURLSpy).toHaveBeenCalled();
+            expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:test-url');
         });
 
-        it('should handle API failures gracefully', async () => {
-            mockFetch
-                .mockResolvedValueOnce({
-                    ok: false,
-                    text: () => Promise.resolve('API Error'),
-                })
-                .mockResolvedValueOnce({
-                    ok: true,
-                    json: () => Promise.resolve({ id: 'event-456' }),
-                });
+        it('should create a sanitized filename from goal title', () => {
+            calendarService.exportToICS(mockPlan, 'Learn Piano & Guitar!');
 
-            const count = await calendarService.syncToCalendar(mockPlan, 'mock-token');
-
-            // Only second event should succeed
-            expect(count).toBe(1);
+            expect(createdLink.download).toBe('invision-learn-piano-guitar-.ics');
         });
 
-        it('should handle network errors gracefully', async () => {
-            mockFetch.mockRejectedValue(new Error('Network error'));
+        it('should use default filename when no title provided', () => {
+            calendarService.exportToICS(mockPlan);
 
-            const count = await calendarService.syncToCalendar(mockPlan, 'mock-token');
-
-            expect(count).toBe(0);
+            expect(createdLink.download).toBe('invision-milestones.ics');
         });
 
-        it('should use correct authorization header', async () => {
-            mockFetch.mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve({}),
-            });
+        it('should create a Blob with correct MIME type', () => {
+            calendarService.exportToICS(mockPlan, 'Test');
 
-            await calendarService.syncToCalendar(mockPlan, 'my-access-token');
-
-            const headers = mockFetch.mock.calls[0][1].headers;
-            expect(headers.Authorization).toBe('Bearer my-access-token');
-        });
-    });
-
-    describe('Event Structure', () => {
-        it('should create all-day events', async () => {
-            mockFetch.mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve({}),
-            });
-
-            const plan: GeneratedPlan = {
-                title: 'Test',
-                description: 'Test plan',
-                timeline: [
-                    {
-                        date: '2025-05-15',
-                        milestone: 'Test Milestone',
-                        description: 'Test description',
-                        steps: [],
-                    },
-                ],
-                sources: [],
-            };
-
-            await calendarService.syncToCalendar(plan, 'token');
-
-            const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-
-            // All-day events use 'date' not 'dateTime'
-            expect(body.start.date).toBeDefined();
-            expect(body.start.dateTime).toBeUndefined();
-            expect(body.end.date).toBeDefined();
+            const blobArg = createObjectURLSpy.mock.calls[0][0] as Blob;
+            expect(blobArg.type).toBe('text/calendar;charset=utf-8');
         });
     });
 });

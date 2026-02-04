@@ -1,7 +1,8 @@
-# The Story of InVision 🌌
+# The Story of InVision 
 
 ## The Vision
 InVision was born from a simple yet ambitious idea: **What if a todo list could dream?**
+![InVision Demo Flow](public/images/demo-walkthrough.mp4)
 
 In a world saturated with static productivity tools, we wanted to create a "Living Vision Board" — a platform that doesn't just catalogue tasks, but actively helps users conceptualize, visualize, and manifest their future. Winners of the *Technical Excellence & Innovation* award, InVision isn't just about getting things done; it's about becoming who you want to be.
 
@@ -50,6 +51,8 @@ The project has seen rapid iteration and refinement during the final sprint:
 -   **3D Engine Overhaul**: Migrated the core visualization from CSS transforms to a high-fidelity **React Three Fiber (WebGL)** engine, enabling photorealistic lighting, atmospheric fog, and complex organic geometries.
 -   **Visual Polish**: Enhanced the "Living Forest" theme with a composite "Mother Tree," floating sapling islands, and particle effects.
 -   **Data Consistency**: Moved entire persistence layer to robust storage, ensuring user journeys are never lost.
+-   **Self-Healing Vision System**: Engineered a robust fallback architecture for AI imagery. If primary generation fails, the system intelligently retries with safe prompts and gracefully degrades to high-quality curated stock visuals, ensuring no user is ever left with a blank canvas.
+-   **Timeline Engine Stability**: Hardened the timeline rendering logic against data corruption, ensuring smooth visualization even with malformed or legacy plan data.
 
 ## The Future
 InVision is just getting started. Our roadmap includes:

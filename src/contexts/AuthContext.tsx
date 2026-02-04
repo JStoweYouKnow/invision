@@ -6,9 +6,11 @@ import { MOCK_USER } from '@/lib/mockData';
 interface AuthContextType {
     user: User | null;
     loading: boolean;
+    authError: string | null;
     signInWithGoogle: () => Promise<void>;
     signInAsGuest: () => Promise<void>;
     signOut: () => Promise<void>;
+    clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +39,9 @@ const createMockUser = (): User => ({
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
+
+    const clearAuthError = () => setAuthError(null);
 
     useEffect(() => {
         // Use onIdTokenChanged instead of onAuthStateChanged to catch profile updates (name/photo changes)
@@ -61,19 +66,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const signInWithGoogle = async () => {
+        setAuthError(null);
         try {
             await signInWithPopup(auth, googleProvider);
         } catch (error) {
-            console.error("Firebase Auth failed, falling back to Demo Mode", error);
-            // Fallback to Mock Auth if configuration is missing or invalid
-            // We check for specific Firebase error codes or just generic failure in this demo context
-            // if (error.code === 'auth/configuration-not-found' || error.code === 'auth/internal-error' || error.message.includes('CONFIGURATION_NOT_FOUND')) {
-            // Activate Mock Mode -> DISABLED for production verification
-            // localStorage.setItem('isMockAuth', 'true');
-            // setUser(createMockUser());
-            // return;
-            // }
-            throw error; // Re-throw other errors
+            console.error("Firebase Auth failed:", error);
+            const firebaseError = error as { code?: string; message?: string };
+
+            // Provide user-friendly error messages
+            if (firebaseError.code === 'auth/popup-blocked') {
+                setAuthError('Popup was blocked. Please allow popups or try Demo Mode.');
+            } else if (firebaseError.code === 'auth/popup-closed-by-user') {
+                // User closed popup, not really an error
+                return;
+            } else if (firebaseError.code === 'auth/cancelled-popup-request') {
+                return;
+            } else if (firebaseError.code === 'auth/network-request-failed') {
+                setAuthError('Network error. Please check your connection or try Demo Mode.');
+            } else if (firebaseError.code === 'auth/quota-exceeded' || firebaseError.code === 'resource-exhausted') {
+                setAuthError('Service temporarily unavailable. Please try Demo Mode.');
+            } else if (firebaseError.code === 'auth/unauthorized-domain') {
+                setAuthError('This domain is not authorized. Please try Demo Mode.');
+            } else {
+                setAuthError('Sign-in failed. Please try Demo Mode instead.');
+            }
+            throw error;
         }
     };
 
@@ -107,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return (
-        <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInAsGuest, signOut }}>
+        <AuthContext.Provider value={{ user, loading, authError, signInWithGoogle, signInAsGuest, signOut, clearAuthError }}>
             {children}
         </AuthContext.Provider>
     );

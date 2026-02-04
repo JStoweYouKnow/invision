@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Image, FileJson, Share2, Copy, Check, Loader2 } from 'lucide-react';
+import { X, Download, Image, FileJson, Share2, Copy, Check, Loader2, Calendar } from 'lucide-react';
 import type { GeneratedPlan } from '@/lib/gemini';
 import { exportAsImage, exportAsPDF, exportAsJSON, copyToClipboard, sharePlan } from '@/lib/export';
+import { calendarService } from '@/lib/calendar';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface ExportModalProps {
@@ -25,7 +26,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleExport = async (type: 'image' | 'pdf' | 'json') => {
+    const handleExport = async (type: 'image' | 'pdf' | 'json' | 'ical') => {
         setLoading(type);
         setError(null);
 
@@ -45,6 +46,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     break;
                 case 'json':
                     exportAsJSON(plan, goalTitle, filename);
+                    break;
+                case 'ical':
+                    calendarService.exportToICS(plan, goalTitle);
                     break;
             }
 
@@ -89,6 +93,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             icon: Download,
         },
         {
+            id: 'ical',
+            label: 'Export to Calendar',
+            description: 'iCal file for any calendar app',
+            icon: Calendar,
+        },
+        {
             id: 'json',
             label: 'Export Data',
             description: 'Backup as JSON file',
@@ -118,15 +128,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     >
                         <div className="modal-macos rounded-2xl overflow-hidden">
                             {/* Header */}
-                            <div className="flex items-center justify-between p-4 border-b border-white/10">
-                                <h2 className="text-lg font-display font-bold text-white">
+                            <div className="flex items-center justify-between p-4 border-b border-black/10">
+                                <h2 className="text-lg font-display font-bold text-black">
                                     Export Vision
                                 </h2>
                                 <button
                                     onClick={onClose}
-                                    className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                                    className="p-2 rounded-lg hover:bg-black/5 transition-colors"
                                 >
-                                    <X className="w-5 h-5 text-white/60" />
+                                    <X className="w-5 h-5 text-black/60" />
                                 </button>
                             </div>
 
@@ -136,9 +146,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                                 {exportOptions.map((option) => (
                                     <button
                                         key={option.id}
-                                        onClick={() => handleExport(option.id as 'image' | 'pdf' | 'json')}
+                                        onClick={() => handleExport(option.id as 'image' | 'pdf' | 'json' | 'ical')}
                                         disabled={loading !== null}
-                                        className="w-full flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all disabled:opacity-50 group"
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl border border-black/10 bg-white/40 hover:bg-white/60 transition-all disabled:opacity-50 group"
                                     >
                                         <div
                                             className="p-3 rounded-xl"
@@ -151,10 +161,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                                             )}
                                         </div>
                                         <div className="text-left">
-                                            <div className="font-medium text-white group-hover:text-white">
+                                            <div className="font-medium text-black group-hover:text-black">
                                                 {option.label}
                                             </div>
-                                            <div className="text-sm text-white/50">
+                                            <div className="text-sm text-black/50">
                                                 {option.description}
                                             </div>
                                         </div>
@@ -163,23 +173,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
                                 {/* Divider */}
                                 <div className="flex items-center gap-3 py-2">
-                                    <div className="flex-1 h-px bg-white/10" />
-                                    <span className="text-xs text-white/40 uppercase tracking-wider">or</span>
-                                    <div className="flex-1 h-px bg-white/10" />
+                                    <div className="flex-1 h-px bg-black/10" />
+                                    <span className="text-xs text-black/40 uppercase tracking-wider">or</span>
+                                    <div className="flex-1 h-px bg-black/10" />
                                 </div>
 
                                 {/* Quick Actions */}
                                 <div className="flex gap-3">
                                     <button
                                         onClick={handleShare}
-                                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-black/10 bg-black/5 hover:bg-black/10 transition-all"
                                     >
-                                        <Share2 className="w-4 h-4 text-white/60" />
-                                        <span className="text-sm text-white/80">Share</span>
+                                        <Share2 className="w-4 h-4 text-black/60" />
+                                        <span className="text-sm text-black/80">Share</span>
                                     </button>
                                     <button
                                         onClick={handleCopy}
-                                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-black/10 bg-black/5 hover:bg-black/10 transition-all"
                                     >
                                         {copied ? (
                                             <>
@@ -188,8 +198,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                                             </>
                                         ) : (
                                             <>
-                                                <Copy className="w-4 h-4 text-white/60" />
-                                                <span className="text-sm text-white/80">Copy</span>
+                                                <Copy className="w-4 h-4 text-black/60" />
+                                                <span className="text-sm text-black/80">Copy</span>
                                             </>
                                         )}
                                     </button>

@@ -1,83 +1,106 @@
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "./firebase";
 import type { GeneratedPlan } from "./gemini";
 
-const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+/**
+ * Generates a unique identifier for iCal events
+ */
+function generateUID(): string {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}@invision.app`;
+}
+
+/**
+ * Escapes special characters in iCal text fields
+ */
+function escapeICalText(text: string): string {
+    return text
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n');
+}
+
+/**
+ * Formats a date string (YYYY-MM-DD) to iCal all-day format (YYYYMMDD)
+ */
+function formatICalDate(dateString: string): string {
+    return dateString.replace(/-/g, '');
+}
+
+/**
+ * Gets the next day for iCal DTEND (required for all-day events)
+ */
+function getNextDay(dateString: string): string {
+    const date = new Date(dateString);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0].replace(/-/g, '');
+}
+
+/**
+ * Generates iCal/ICS file content from a plan
+ */
+function generateICalContent(plan: GeneratedPlan): string {
+    const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+    let icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//InVision//Vision Board App//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        `X-WR-CALNAME:InVision - ${escapeICalText(plan.title)}`,
+    ].join('\r\n');
+
+    for (const item of plan.timeline) {
+        const event = [
+            '',
+            'BEGIN:VEVENT',
+            `UID:${generateUID()}`,
+            `DTSTAMP:${now}`,
+            `DTSTART;VALUE=DATE:${formatICalDate(item.date)}`,
+            `DTEND;VALUE=DATE:${getNextDay(item.date)}`,
+            `SUMMARY:InVision: ${escapeICalText(item.milestone)}`,
+            `DESCRIPTION:${escapeICalText(item.description)}\\n\\nPart of goal: ${escapeICalText(plan.title)}`,
+            'STATUS:CONFIRMED',
+            'TRANSP:TRANSPARENT',
+            'BEGIN:VALARM',
+            'ACTION:DISPLAY',
+            `DESCRIPTION:Reminder: ${escapeICalText(item.milestone)}`,
+            'TRIGGER:-P1D',
+            'END:VALARM',
+            'END:VEVENT',
+        ].join('\r\n');
+
+        icsContent += event;
+    }
+
+    icsContent += '\r\nEND:VCALENDAR';
+
+    return icsContent;
+}
 
 export const calendarService = {
     /**
-     * Authenticates the user with Google and requests Calendar permissions.
-     * Returns the OAuth access token.
+     * Exports the plan as an iCal (.ics) file for download.
+     * Works with Apple Calendar, Outlook, Google Calendar, and any iCal-compatible app.
      */
-    async getAccessToken(): Promise<string> {
-        try {
-            // Force prompt to ensure we get a fresh token with the correct scopes, 
-            // and to prevent the popup from flashing/closing immediately if already signed in.
-            googleProvider.setCustomParameters({
-                prompt: 'select_account consent'
-            });
+    exportToICS(plan: GeneratedPlan, goalTitle?: string): void {
+        const icsContent = generateICalContent(plan);
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
 
-            const result = await signInWithPopup(auth, googleProvider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            const token = credential?.accessToken;
+        // Create a sanitized filename from the goal title
+        const filename = goalTitle
+            ? `invision-${goalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)}.ics`
+            : 'invision-milestones.ics';
 
-            if (!token) {
-                throw new Error("Failed to retrieve Google Access Token");
-            }
+        // Trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
-            return token;
-        } catch (error) {
-            console.error("Error signing in with Google:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Syncs the generated plan milestones to the user's primary Google Calendar.
-     */
-    async syncToCalendar(plan: GeneratedPlan, accessToken: string): Promise<number> {
-        let createdCount = 0;
-
-        for (const item of plan.timeline) {
-            const event = {
-                summary: `InVision: ${item.milestone}`,
-                description: `${item.description}\n\nPart of goal: ${plan.title}`,
-                start: {
-                    date: item.date, // All-day event
-                },
-                end: {
-                    date: item.date, // Google Calendar requires end date for all-day events (usually next day, but same day works for single day)
-                },
-                reminders: {
-                    useDefault: false,
-                    overrides: [
-                        { method: 'email', minutes: 24 * 60 },
-                        { method: 'popup', minutes: 10 },
-                    ],
-                },
-            };
-
-            try {
-                const response = await fetch(CALENDAR_API_URL, {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(event),
-                });
-
-                if (!response.ok) {
-                    console.error(`Failed to create event for ${item.milestone}`, await response.text());
-                    continue;
-                }
-
-                createdCount++;
-            } catch (error) {
-                console.error("Error creating calendar event:", error);
-            }
-        }
-
-        return createdCount;
+        // Clean up the blob URL
+        URL.revokeObjectURL(url);
     }
 };

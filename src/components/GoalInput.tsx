@@ -61,6 +61,16 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
         };
     }, [imagePreviewUrl]);
 
+    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+        }
+    }, [input]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() && !selectedImage) return;
@@ -107,6 +117,7 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                         {/* Main Input Area */}
                         <div className="relative flex flex-col gap-2">
                             <textarea
+                                ref={textareaRef}
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onFocus={() => setIsFocused(true)}
@@ -119,7 +130,7 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                                 className={`w-full bg-transparent border-none text-base md:text-lg font-display font-bold ${['brain', 'tree'].includes(currentTheme.id)
                                     ? 'text-white placeholder:text-white/60 caret-white selection:bg-white/20'
                                     : 'text-slate-800 placeholder:text-slate-500 caret-purple-600 selection:bg-purple-200'
-                                    } placeholder:font-playful placeholder:font-bold placeholder:tracking-wide focus:ring-0 focus:outline-none resize-none min-h-[35px] max-h-[80px] py-1.5 text-center leading-tight tracking-tight break-words whitespace-pre-wrap`}
+                                    } placeholder:font-playful placeholder:font-bold placeholder:tracking-wide focus:ring-0 focus:outline-none resize-none min-h-[44px] max-h-[120px] py-2 text-center leading-tight tracking-tight break-words whitespace-pre-wrap overflow-y-auto`}
                                 rows={1}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {

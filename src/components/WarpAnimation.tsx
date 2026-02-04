@@ -22,7 +22,7 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
 
     // Callback ref - this gets called when the canvas is attached to the DOM
     const canvasCallbackRef = useCallback((canvas: HTMLCanvasElement | null) => {
-        console.log("📍 Canvas callback ref called - canvas:", !!canvas);
+        // console.log("📍 Canvas callback ref called - canvas:", !!canvas);
         setCanvasElement(canvas);
     }, []);
 
@@ -37,33 +37,33 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
 
     // WebGL Animation Effect - triggers when canvas element is available
     useEffect(() => {
-        console.log("🌀 WebGL effect triggered - isActive:", isActive, "canvas:", !!canvasElement);
+        // console.log("🌀 WebGL effect triggered - isActive:", isActive, "canvas:", !!canvasElement);
 
         if (!isActive) {
-            console.log("❌ Not active, skipping WebGL setup");
+            // console.log("❌ Not active, skipping WebGL setup");
             return;
         }
 
         if (!canvasElement) {
-            console.log("⏳ Canvas not available yet, waiting...");
+            // console.log("⏳ Canvas not available yet, waiting...");
             return;
         }
 
-        console.log("✅ Setting up WebGL...");
+        // console.log("✅ Setting up WebGL...");
         const canvas = canvasElement;
         const gl = canvas.getContext("webgl");
         if (!gl) {
             console.error("❌ WebGL not supported");
             return;
         }
-        console.log("✅ WebGL context created");
+        // console.log("✅ WebGL context created");
 
         // Set dimensions
         const setDimensions = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             gl.viewport(0, 0, canvas.width, canvas.height);
-            console.log(`📏 Canvas resized to ${canvas.width}x${canvas.height}`);
+            // console.log(`📏 Canvas resized to ${canvas.width}x${canvas.height}`);
         };
         setDimensions();
         window.addEventListener('resize', setDimensions);
@@ -141,7 +141,7 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
             console.error("❌ Program link error:", gl.getProgramInfoLog(program));
             return;
         }
-        console.log("✅ Shaders compiled and linked successfully");
+        // console.log("✅ Shaders compiled and linked successfully");
 
         gl.useProgram(program);
 
@@ -164,25 +164,23 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
         const timeLoc = gl.getUniformLocation(program, "uTime");
 
         // Render Loop
-        let frameCount = 0;
         const render = (time: number) => {
             gl.uniform1f(timeLoc, time * 0.001);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
             // Log first few frames to confirm rendering
-            if (frameCount < 3) {
-                console.log(`🎨 Frame ${frameCount} rendered at time ${time.toFixed(2)}ms`);
-                frameCount++;
-            }
+            // if (frameCount < 3) {
+            //     console.log(`🎨 Frame ${frameCount} rendered at time ${time.toFixed(2)}ms`);
+            //     frameCount++;
+            // }
 
             requestRef.current = requestAnimationFrame(render);
         };
 
-        console.log("✅ Starting animation loop");
         requestRef.current = requestAnimationFrame(render);
 
         return () => {
-            console.log("🧹 Cleaning up WebGL resources");
+            // console.log("🧹 Cleaning up WebGL resources");
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             window.removeEventListener('resize', setDimensions);
             gl.deleteProgram(program);
@@ -190,15 +188,15 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
     }, [isActive, canvasElement]);
 
     if (typeof document === 'undefined') {
-        console.log("❌ Document not available (SSR?)");
+        // console.log("❌ Document not available (SSR?)");
         return null;
     }
     if (!isActive) {
-        console.log("❌ WarpAnimation not active, returning null");
+        // console.log("❌ WarpAnimation not active, returning null");
         return null;
     }
 
-    console.log("🚀 WarpAnimation RENDERING - creating portal to body");
+    // console.log("🚀 WarpAnimation RENDERING - creating portal to body");
 
     return createPortal(
         <div

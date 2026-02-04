@@ -46,6 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = false }) => {
     const [goals, setGoals] = useState<SavedGoal[]>([]);
     const [loading, setLoading] = useState(!demoMode);
     const [viewMode, setViewMode] = useState<'grid' | 'cosmos' | 'solar' | '3d' | 'analytics'>('grid');
+    const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (demoMode) {
@@ -222,14 +223,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = false }) => {
                                 <Link to={`/plan/${goal.id}`} className="group relative block w-full aspect-[3/4] sm:aspect-[4/5] rounded-2xl sm:rounded-[2rem] overflow-hidden border border-white/10 shadow-lg transition-transform duration-500 hover:-translate-y-2 active:scale-[0.98]">
                                     {/* Image */}
                                     <div className="absolute inset-0 bg-slate-900">
-                                        <img
-                                            src={(!goal.visionImage || goal.visionImage.includes("images.unsplash.com"))
-                                                ? `https://image.pollinations.ai/prompt/${encodeURIComponent(`cinematic shot of ${goal.title}, futuristic, inspirational, highly detailed, 8k`)}?width=800&height=1000&nologo=true`
-                                                : goal.visionImage}
-                                            alt={goal.title}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 md:group-hover:blur-[2px]"
-                                            loading="lazy"
-                                        />
+                                        {failedImages.has(goal.id!) ? (
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center">
+                                                <div className="absolute inset-0 opacity-30">
+                                                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-white rounded-full animate-pulse" />
+                                                    <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-white/80 rounded-full" />
+                                                    <div className="absolute bottom-1/3 left-1/2 w-1.5 h-1.5 bg-white/60 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+                                                    <div className="absolute top-1/2 right-1/4 w-1 h-1 bg-white/70 rounded-full" />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={(!goal.visionImage || goal.visionImage.includes("images.unsplash.com"))
+                                                    ? `https://image.pollinations.ai/prompt/${encodeURIComponent(`cinematic shot of ${goal.title}, futuristic, inspirational, highly detailed, 8k`)}?width=800&height=1000&nologo=true`
+                                                    : goal.visionImage}
+                                                alt={goal.title}
+                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 md:group-hover:blur-[2px]"
+                                                loading="lazy"
+                                                onError={() => setFailedImages(prev => new Set(prev).add(goal.id!))}
+                                            />
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-80 md:opacity-60 md:group-hover:opacity-90 transition-opacity duration-300" />
                                     </div>
 

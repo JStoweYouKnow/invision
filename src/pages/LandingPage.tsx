@@ -18,7 +18,7 @@ import { OnboardingTour } from '@/components/OnboardingTour';
 
 
 export const LandingPage: React.FC = () => {
-    const { user, signInWithGoogle, signInAsGuest, signOut } = useAuth();
+    const { user, signInWithGoogle, signInAsGuest, signOut, authError, clearAuthError } = useAuth();
     const { showError, showSuccess } = useToast();
     const { currentTheme } = useTheme(); // Get theme
     const [hasStarted, setHasStarted] = useState(false);
@@ -259,11 +259,12 @@ export const LandingPage: React.FC = () => {
     };
 
     const handleLogin = async () => {
+        clearAuthError();
         try {
             await signInWithGoogle();
         } catch (error) {
             console.error("Login widget error:", error);
-            showError(`Login failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+            // authError is already set by the context, no need to show toast
         }
     };
 
@@ -308,6 +309,7 @@ export const LandingPage: React.FC = () => {
                     visionImage={visionImage}
                     onGoHome={() => setGeneratedPlan(null)}
                     onUpdatePlan={(newPlan) => setGeneratedPlan(newPlan)}
+                    onUpdateVisionImage={(newUrl) => setVisionImage(newUrl)}
                 />
             ) : (
                 /* Landing Page Content */
@@ -362,7 +364,7 @@ export const LandingPage: React.FC = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2 md:gap-3">
+                                <div className="relative flex items-center gap-2 md:gap-3">
                                     <button
                                         onClick={async () => {
                                             try {
@@ -381,6 +383,20 @@ export const LandingPage: React.FC = () => {
                                     >
                                         <span>Sign In</span>
                                     </button>
+                                    {authError && (
+                                        <div className="absolute top-full right-0 mt-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg backdrop-blur-sm min-w-[280px] z-50">
+                                            <p className="text-red-200 text-sm mb-2">{authError}</p>
+                                            <button
+                                                onClick={async () => {
+                                                    clearAuthError();
+                                                    await signInAsGuest();
+                                                }}
+                                                className="text-sm text-white underline hover:text-red-200"
+                                            >
+                                                Continue with Demo Mode →
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

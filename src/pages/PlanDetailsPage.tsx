@@ -78,6 +78,7 @@ export const PlanDetailsPage: React.FC = () => {
     };
 
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleProgressChange = useCallback((completed: number, total: number) => {
@@ -86,12 +87,17 @@ export const PlanDetailsPage: React.FC = () => {
 
     const handleDelete = async () => {
         if (!goal || !goal.id) return;
+        setDeleteLoading(true);
         try {
             await firestoreService.deleteGoal(goal.id);
+            setShowDeleteConfirm(false);
             navigate('/dashboard');
         } catch (error) {
             console.error("Failed to delete goal:", error);
-            // Optionally show error toast
+            setDeleteLoading(false);
+            setShowDeleteConfirm(false);
+            const message = error instanceof Error ? error.message : 'Failed to delete vision. Please try again.';
+            alert(message);
         }
     };
 
@@ -279,6 +285,30 @@ export const PlanDetailsPage: React.FC = () => {
                         onProgressChange={handleProgressChange}
                         isReadOnly={!isOwner}
                         authorName={!isOwner ? goal.authorName : undefined}
+                        // Vision Image Update
+                        onUpdateVisionImage={isOwner ? async (newUrl) => {
+                            if (!goal || !goal.id) return;
+
+                            // Prevent infinite updates if the URL hasn't effectively changed
+                            if (goal.visionImage === newUrl) return;
+
+                            try {
+                                // Optimistic update
+                                setGoal(prev => prev ? { ...prev, visionImage: newUrl } : null);
+
+                                // Persist
+                                if (goal.id.startsWith('mock-') || goal.id.startsWith('goal_')) {
+                                    console.log('Mock/Demo: Persisting vision image update locally');
+                                    // For mock goals, we rely on the optimistic update above.
+                                    // In a real app we'd update the mock store, but for this demo session, 
+                                    // local state is sufficient as long as we don't crash.
+                                } else {
+                                    await firestoreService.updateGoal(goal.id, { visionImage: newUrl });
+                                }
+                            } catch (err) {
+                                console.error("Failed to update vision image:", err);
+                            }
+                        } : undefined}
                         // Pause functionality
                         isPaused={(goal as { status?: string }).status === 'paused'}
                         pausedAt={(goal as { pausedAt?: number }).pausedAt}
@@ -304,6 +334,7 @@ export const PlanDetailsPage: React.FC = () => {
                 confirmText="Delete Vision"
                 cancelText="Keep Vision"
                 isDestructive={true}
+                isLoading={deleteLoading}
             />
         </>
     );

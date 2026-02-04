@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import type { GeneratedPlan } from '@/lib/gemini';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface CalendarEvent {
     title: string;
@@ -38,6 +39,7 @@ interface CalendarViewProps {
 export const CalendarView: React.FC<CalendarViewProps> = ({ plan, onSelectEvent }) => {
     const [date, setDate] = useState(new Date());
     const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+    const { currentTheme } = useTheme();
 
     // Transform timeline into calendar events
     const events = plan.timeline.flatMap((item, index) => {
@@ -109,14 +111,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ plan, onSelectEvent 
         return (
             <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
                 <div className="flex items-center gap-4">
-                    <button onClick={goToBack} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <button
+                        onClick={goToBack}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                        style={{ color: currentTheme.colors.accent }}
+                    >
                         <ChevronLeft className="w-5 h-5" />
                     </button>
                     <div className="min-w-[220px] text-center">{label()}</div>
-                    <button onClick={goToNext} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <button
+                        onClick={goToNext}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                        style={{ color: currentTheme.colors.accent }}
+                    >
                         <ChevronRight className="w-5 h-5" />
                     </button>
-                    <button onClick={goToCurrent} className="text-sm font-medium text-brand-indigo hover:text-brand-purple transition-colors ml-2">
+                    <button
+                        onClick={goToCurrent}
+                        className="text-sm font-medium transition-colors ml-2 hover:opacity-80"
+                        style={{ color: currentTheme.colors.primary }}
+                    >
                         Today
                     </button>
                 </div>
@@ -127,9 +141,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ plan, onSelectEvent 
                             key={v}
                             onClick={() => toolbar.onView(v)}
                             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${toolbar.view === v
-                                ? 'bg-brand-indigo text-white shadow-lg'
+                                ? 'text-white shadow-lg'
                                 : 'text-muted-foreground hover:text-white'
                                 }`}
+                            style={toolbar.view === v ? { backgroundColor: currentTheme.colors.primary } : undefined}
                         >
                             {v.charAt(0).toUpperCase() + v.slice(1)}
                         </button>
@@ -139,12 +154,91 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ plan, onSelectEvent 
         );
     };
 
+    // Generate dynamic CSS for the calendar based on theme
+    const calendarStyles = `
+        .rbc-calendar {
+            color: white;
+        }
+        .rbc-header {
+            color: ${currentTheme.colors.accent};
+            font-weight: 600;
+            padding: 12px 8px;
+            border-bottom: 1px solid ${currentTheme.colors.accent}30 !important;
+        }
+        .rbc-month-view, .rbc-time-view {
+            border: 1px solid ${currentTheme.colors.accent}20 !important;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        .rbc-month-row {
+            border-top: 1px solid ${currentTheme.colors.accent}15 !important;
+        }
+        .rbc-day-bg {
+            border-left: 1px solid ${currentTheme.colors.accent}15 !important;
+        }
+        .rbc-day-bg + .rbc-day-bg {
+            border-left: 1px solid ${currentTheme.colors.accent}15 !important;
+        }
+        .rbc-off-range-bg {
+            background-color: ${currentTheme.colors.primary}08 !important;
+        }
+        .rbc-today {
+            background-color: ${currentTheme.colors.primary}20 !important;
+        }
+        .rbc-date-cell {
+            color: white;
+            padding: 4px 8px;
+        }
+        .rbc-date-cell.rbc-off-range {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .rbc-date-cell.rbc-now {
+            color: ${currentTheme.colors.primary};
+            font-weight: bold;
+        }
+        .rbc-event {
+            background-color: ${currentTheme.colors.primary}cc !important;
+        }
+        .rbc-event:hover {
+            background-color: ${currentTheme.colors.primary} !important;
+        }
+        .rbc-event-content {
+            color: white;
+        }
+        .rbc-show-more {
+            color: ${currentTheme.colors.accent};
+            font-weight: 500;
+        }
+        .rbc-time-header-cell {
+            color: ${currentTheme.colors.accent};
+        }
+        .rbc-time-slot {
+            border-top: 1px solid ${currentTheme.colors.accent}10 !important;
+        }
+        .rbc-timeslot-group {
+            border-bottom: 1px solid ${currentTheme.colors.accent}15 !important;
+        }
+        .rbc-time-content {
+            border-top: 1px solid ${currentTheme.colors.accent}20 !important;
+        }
+        .rbc-time-gutter {
+            color: ${currentTheme.colors.accent}80;
+        }
+        .rbc-current-time-indicator {
+            background-color: ${currentTheme.colors.primary} !important;
+        }
+        .rbc-label {
+            color: ${currentTheme.colors.accent}80;
+        }
+    `;
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="h-[600px] glass-card rounded-[2rem] p-6 text-white"
         >
+            <style>{calendarStyles}</style>
             <Calendar
                 localizer={localizer}
                 events={events}
@@ -165,10 +259,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ plan, onSelectEvent 
                     }
                 }}
                 eventPropGetter={(event: CalendarEvent) => ({
-                    className: `glass-event border border-white/20 !rounded-lg text-xs font-medium !p-1.5 hover:!bg-brand-indigo/80 transition-colors cursor-pointer ${event.type === 'milestone'
-                        ? '!bg-brand-indigo/80 !border-brand-purple/50 font-bold'
-                        : '!bg-slate-500/50 !border-white/10'
-                        }`
+                    className: `glass-event !rounded-lg text-xs font-medium !p-1.5 transition-colors cursor-pointer ${event.type === 'milestone'
+                        ? 'font-bold'
+                        : ''
+                        }`,
+                    style: event.type === 'milestone'
+                        ? {
+                            backgroundColor: `${currentTheme.colors.primary}cc`,
+                            borderColor: `${currentTheme.colors.accent}80`,
+                            borderWidth: '1px'
+                        }
+                        : {
+                            backgroundColor: `${currentTheme.colors.accent}40`,
+                            borderColor: `${currentTheme.colors.accent}30`,
+                            borderWidth: '1px'
+                        }
                 })}
             />
         </motion.div>

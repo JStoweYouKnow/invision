@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, disableFirestoreNetwork, enableFirestoreNetwork, switchToBackupFirebase, hasBackupFirebaseConfig, isUsingBackupFirebase } from './firebase';
 import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, deleteDoc, limit, orderBy, setDoc, onSnapshot } from 'firebase/firestore';
 import type { GeneratedPlan } from './gemini';
 import type { CelestialType } from '@/components/CelestialBody';
@@ -76,6 +76,78 @@ function sanitizeData(data: any): any {
 
 // --- In-Memory Mock Store for Demo Session (Persisted via LocalStorage) ---
 const STORAGE_KEY = 'invision_mock_store_v1';
+const OFFLINE_GOALS_KEY = 'invision_offline_goals_v1';
+const QUOTA_EXCEEDED_KEY = 'invision_quota_exceeded';
+
+// --- Offline/Fallback Storage for when Firebase quota is exceeded ---
+interface OfflineStore {
+    goals: SavedGoal[];
+    deletedGoalIds: string[];
+    lastSyncAttempt?: number;
+}
+
+const loadOfflineStore = (): OfflineStore => {
+    try {
+        const stored = localStorage.getItem(OFFLINE_GOALS_KEY);
+        if (stored) {
+            const data = JSON.parse(stored, reviveDates);
+            return {
+                goals: data.goals || [],
+                deletedGoalIds: data.deletedGoalIds || [],
+                lastSyncAttempt: data.lastSyncAttempt
+            };
+        }
+    } catch (e) {
+        console.warn('Failed to load offline store', e);
+    }
+    return { goals: [], deletedGoalIds: [] };
+};
+
+const saveOfflineStore = (store: OfflineStore) => {
+    try {
+        localStorage.setItem(OFFLINE_GOALS_KEY, JSON.stringify(store));
+    } catch (e) {
+        console.warn('Failed to save offline store', e);
+    }
+};
+
+const offlineStore = loadOfflineStore();
+
+// Check if we're in quota exceeded mode
+const isQuotaExceeded = (): boolean => {
+    const timestamp = localStorage.getItem(QUOTA_EXCEEDED_KEY);
+    if (!timestamp) return false;
+    // Consider quota exceeded for 1 hour, then retry
+    const hourAgo = Date.now() - (60 * 60 * 1000);
+    return parseInt(timestamp) > hourAgo;
+};
+
+const setQuotaExceeded = () => {
+    localStorage.setItem(QUOTA_EXCEEDED_KEY, Date.now().toString());
+
+    // If backup Firebase is available and we're not already using it, switch
+    if (hasBackupFirebaseConfig() && !isUsingBackupFirebase()) {
+        console.log('Quota exceeded on primary - switching to backup Firebase');
+        switchToBackupFirebase(); // This will reload the page
+        return;
+    }
+
+    // Otherwise just disable Firestore network to stop retry attempts
+    disableFirestoreNetwork().catch(() => {});
+};
+
+const clearQuotaExceeded = () => {
+    localStorage.removeItem(QUOTA_EXCEEDED_KEY);
+    // Re-enable Firestore network
+    enableFirestoreNetwork().catch(() => {})
+};
+
+// Helper to check if error is quota exceeded
+const isQuotaError = (error: unknown): boolean => {
+    const firebaseError = error as { code?: string; message?: string };
+    return firebaseError.code === 'resource-exhausted' ||
+           (firebaseError.message?.includes('Quota exceeded') ?? false);
+};
 
 // Helper to revive dates from JSON
 const reviveDates = (_key: string, value: unknown) => {
@@ -171,39 +243,83 @@ export const firestoreService = {
             console.log("Mock User: 'Saving' goal locally (skipped Firestore write).");
             return `mock-goal-${Date.now()}`;
         }
-        try {
-            const goalData = {
-                userId,
-                title: plan.title,
-                description: plan.description,
-                plan,
-                visionImage,
-                createdAt: Timestamp.now(),
-                isPublic: false, // Default to private
-                authorName: authorName || 'Anonymous',
-                authorPhoto: authorPhoto || null,
-                celestialType: celestialType || null
-            };
 
-            const sanitizedData = sanitizeData(goalData);
+        const goalData = {
+            userId,
+            title: plan.title,
+            description: plan.description,
+            plan,
+            visionImage,
+            createdAt: new Date(),
+            isPublic: false,
+            authorName: authorName || 'Anonymous',
+            authorPhoto: authorPhoto || undefined,
+            celestialType: celestialType || undefined
+        };
+
+        // If quota exceeded, save to localStorage directly
+        if (isQuotaExceeded()) {
+            const offlineId = `offline-goal-${Date.now()}`;
+            const offlineGoal: SavedGoal = { ...goalData, id: offlineId };
+            offlineStore.goals.push(offlineGoal);
+            saveOfflineStore(offlineStore);
+            console.log("Quota exceeded: Saved goal to localStorage", offlineId);
+            return offlineId;
+        }
+
+        try {
+            const firestoreData = { ...goalData, createdAt: Timestamp.now() };
+            const sanitizedData = sanitizeData(firestoreData);
             const docRef = await addDoc(collection(db, 'goals'), sanitizedData);
+            clearQuotaExceeded(); // Firestore is working
             return docRef.id;
         } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                // Save to localStorage as fallback
+                const offlineId = `offline-goal-${Date.now()}`;
+                const offlineGoal: SavedGoal = { ...goalData, id: offlineId };
+                offlineStore.goals.push(offlineGoal);
+                saveOfflineStore(offlineStore);
+                console.log("Quota exceeded: Saved goal to localStorage", offlineId);
+                return offlineId;
+            }
             console.error("Error saving goal:", error);
             throw error;
         }
     },
 
     updateGoal: async (goalId: string, data: Partial<SavedGoal>): Promise<void> => {
+        // Handle mock/offline goals locally
         if (goalId.startsWith('mock-goal-')) {
-            console.log("Mock User: 'Updating' goal locally.");
             return;
         }
+        if (goalId.startsWith('offline-goal-')) {
+            const idx = offlineStore.goals.findIndex(g => g.id === goalId);
+            if (idx !== -1) {
+                offlineStore.goals[idx] = { ...offlineStore.goals[idx], ...data };
+                saveOfflineStore(offlineStore);
+            }
+            return;
+        }
+
+        // Skip Firestore if quota exceeded
+        if (isQuotaExceeded()) {
+            console.log("Quota exceeded: Skipping Firestore update");
+            return;
+        }
+
         try {
             const docRef = doc(db, 'goals', goalId);
             const sanitizedData = sanitizeData(data);
             await updateDoc(docRef, sanitizedData);
+            clearQuotaExceeded();
         } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                console.log("Quota exceeded: Skipping Firestore update");
+                return;
+            }
             console.error("Error updating goal:", error);
             throw error;
         }
@@ -212,15 +328,40 @@ export const firestoreService = {
     deleteGoal: async (goalId: string): Promise<void> => {
         // Handle mock goals - track as deleted
         if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
-            console.log("Mock User: Deleting mock goal:", goalId);
             mockStore.deletedGoalIds.add(goalId);
             saveMockStore();
             return;
         }
+
+        // Handle offline goals
+        if (goalId.startsWith('offline-goal-')) {
+            offlineStore.goals = offlineStore.goals.filter(g => g.id !== goalId);
+            offlineStore.deletedGoalIds.push(goalId);
+            saveOfflineStore(offlineStore);
+            return;
+        }
+
+        // Skip Firestore if quota exceeded, just mark as deleted locally
+        if (isQuotaExceeded()) {
+            offlineStore.deletedGoalIds.push(goalId);
+            saveOfflineStore(offlineStore);
+            console.log("Quota exceeded: Marked goal as deleted locally");
+            return;
+        }
+
         try {
             const docRef = doc(db, 'goals', goalId);
             await deleteDoc(docRef);
-        } catch (error) {
+            clearQuotaExceeded();
+        } catch (error: unknown) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                // Mark as deleted locally for sync later
+                offlineStore.deletedGoalIds.push(goalId);
+                saveOfflineStore(offlineStore);
+                console.log("Quota exceeded: Marked goal as deleted locally");
+                return;
+            }
             console.error("Error deleting goal:", error);
             throw error;
         }
@@ -228,38 +369,75 @@ export const firestoreService = {
 
     getUserGoals: async (userId: string): Promise<SavedGoal[]> => {
         if (userId === MOCK_USER.uid) {
-            console.log("Mock User: Returning mock goals filtered by deleted IDs.");
             return MOCK_GOALS.filter(g => !mockStore.deletedGoalIds.has(g.id || ''));
         }
+
+        // Get offline goals for this user
+        const offlineGoals = offlineStore.goals
+            .filter(g => g.userId === userId && !offlineStore.deletedGoalIds.includes(g.id || ''));
+
+        // If quota exceeded, return only offline/cached goals
+        if (isQuotaExceeded()) {
+            console.log("Quota exceeded: Returning offline goals only");
+            return offlineGoals;
+        }
+
         try {
             const q = query(collection(db, 'goals'), where('userId', '==', userId));
             const querySnapshot = await getDocs(q);
+            clearQuotaExceeded();
 
-            return querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: toDate(doc.data().createdAt),
-            })) as SavedGoal[];
+            const firestoreGoals = querySnapshot.docs
+                .filter(d => !offlineStore.deletedGoalIds.includes(d.id))
+                .map(d => ({
+                    id: d.id,
+                    ...d.data(),
+                    createdAt: toDate(d.data().createdAt),
+                })) as SavedGoal[];
+
+            // Combine Firestore goals with offline goals
+            return [...firestoreGoals, ...offlineGoals];
         } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                console.log("Quota exceeded: Returning offline goals only");
+                return offlineGoals;
+            }
             console.error("Error fetching user goals:", error);
             throw error;
         }
     },
 
     getGoalById: async (goalId: string): Promise<SavedGoal | null> => {
-        // Check if mock goal was deleted
-        if (mockStore.deletedGoalIds.has(goalId)) {
+        // Check if deleted (mock or offline)
+        if (mockStore.deletedGoalIds.has(goalId) || offlineStore.deletedGoalIds.includes(goalId)) {
             return null;
         }
+
         // Mock check
         if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
             const allMockGoals = [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS];
             return allMockGoals.find(g => g.id === goalId) || null;
         }
 
+        // Offline goal check
+        if (goalId.startsWith('offline-goal-')) {
+            return offlineStore.goals.find(g => g.id === goalId) || null;
+        }
+
+        // If quota exceeded, check offline store first
+        if (isQuotaExceeded()) {
+            const offlineGoal = offlineStore.goals.find(g => g.id === goalId);
+            if (offlineGoal) return offlineGoal;
+            // Can't fetch from Firestore, return null
+            console.log("Quota exceeded: Cannot fetch goal from Firestore");
+            return null;
+        }
+
         try {
             const docRef = doc(db, 'goals', goalId);
             const docSnap = await getDoc(docRef);
+            clearQuotaExceeded();
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -272,6 +450,13 @@ export const firestoreService = {
                 return null;
             }
         } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                const offlineGoal = offlineStore.goals.find(g => g.id === goalId);
+                if (offlineGoal) return offlineGoal;
+                console.log("Quota exceeded: Cannot fetch goal from Firestore");
+                return null;
+            }
             console.error("Error fetching goal:", error);
             throw error;
         }
@@ -283,10 +468,33 @@ export const firestoreService = {
             if (goal) goal.isPublic = isPublic;
             return;
         }
+
+        // Handle offline goals
+        if (goalId.startsWith('offline-goal-')) {
+            const idx = offlineStore.goals.findIndex(g => g.id === goalId);
+            if (idx !== -1) {
+                offlineStore.goals[idx].isPublic = isPublic;
+                saveOfflineStore(offlineStore);
+            }
+            return;
+        }
+
+        // Skip Firestore if quota exceeded
+        if (isQuotaExceeded()) {
+            console.log("Quota exceeded: Cannot toggle visibility");
+            return;
+        }
+
         try {
             const docRef = doc(db, 'goals', goalId);
             await updateDoc(docRef, { isPublic });
+            clearQuotaExceeded();
         } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                console.log("Quota exceeded: Cannot toggle visibility");
+                return;
+            }
             console.error("Error toggling visibility:", error);
             throw error;
         }

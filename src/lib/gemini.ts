@@ -262,21 +262,12 @@ async function fileToGenerativePart(file: File): Promise<Part> {
 
 export const geminiService = {
     async generatePlan(goal: string, timeline: string = "flexible", image?: File, isWormhole: boolean = false): Promise<GeneratedPlan> {
-        // Use gemini-1.5-flash for structured output support, or gemini-1.5-pro if needed for reasoning
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: planSchema,
-            }
-        });
-
         const systemPrompt = isWormhole
             ? `
               You are a cosmic visionary and life coach.
               The user has invoked the "Wormhole" - they want you to generate a unique, exciting, and specific life goal for them.
               It should be ambitious but achievable (e.g., "Become a certified master scuba diver", "Write and publish a sci-fi novel", "Learn to fly a glider").
-              
+
               FIRST, invent this specific goal.
               THEN, create a comprehensive plan for it.
               `
@@ -287,14 +278,14 @@ export const geminiService = {
 
         const prompt = `
       ${systemPrompt}
-      
+
       User's Requested Timeline: ${timeline === "flexible" ? "Indefinite / However long it takes (be realistic but ambitious)" : timeline}
-      
+
       Instructions:
       1. Provide a description that is a substantial, inspiring paragraph (3-5 sentences) explaining the significance and focus of this period.
       2. Provide a whyItMatters sentence explaining the deep internal motivation or shift that happens here.
       3. Provide a steps array containing exactly 3-4 specific, concrete, and actionable tasks.
-      4. CRITICAL: 
+      4. CRITICAL:
          - The VERY FIRST step of the entire plan MUST have a date within 2-3 days of the current date (${new Date().toISOString().split('T')[0]}) to establish immediate momentum.
          - All subsequent step dates must be chronologically ordered and must be BEFORE or ON the milestone date.
       5. Include 1-2 resources where applicable. IMPORTANT rules for URLs:
@@ -302,28 +293,40 @@ export const geminiService = {
          - DO NOT provide deep links to specific articles or course pages unless you are 100% certain they exist and are permanent.
          - If uncertain, provide a Google Search URL query instead (e.g., 'https://www.google.com/search?q=topic').
 
-      Important: 
+      Important:
       - Ensure the total duration of the plan respects the User's Requested Timeline (${timeline}).
       - The timeline should start from the current date (${new Date().toISOString().split('T')[0]}).
-      
+
       ${isWormhole ? 'Invent a goal yourself.' : `Goal Input: "${goal}"`}
     `;
 
-        const parts: (string | Part)[] = [prompt];
+        // Prepare image part if provided
+        let imagePart: Part | null = null;
         if (image) {
-            parts.push(await fileToGenerativePart(image));
+            imagePart = await fileToGenerativePart(image);
         }
 
-        try {
+        // Use fallback mechanism - try PRIMARY_MODEL first, then BACKUP_MODEL
+        return generateWithFallback("generatePlan", async (modelName) => {
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: planSchema,
+                }
+            });
+
+            const parts: (string | Part)[] = [prompt];
+            if (imagePart) {
+                parts.push(imagePart);
+            }
+
             const result = await model.generateContent(parts);
             const response = await result.response;
 
             // The response text is guaranteed to be JSON matching the schema
             return JSON.parse(response.text()) as GeneratedPlan;
-        } catch (error) {
-            console.error("Gemini Plan Generation Error:", error);
-            throw new Error("Failed to generate plan. Please try again.");
-        }
+        });
     },
 
     async generateVisionImage(goal: string, description?: string, profilePhotoDataUri?: string): Promise<string> {
