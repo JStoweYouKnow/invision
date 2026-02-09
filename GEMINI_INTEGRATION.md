@@ -1,6 +1,6 @@
 # Gemini Integration
 
-InVision is powered end-to-end by **Google Gemini 3**, which serves as the application's AI core across seven distinct capabilities:
+InVision is powered end-to-end by **Google Gemini 3**, which serves as the application's AI core across eight distinct capabilities:
 
 **1. Plan Generation (Gemini 3 Flash/Pro)** — Users describe a life goal in text, voice, or image. Gemini generates a complete multi-milestone plan using **Structured Outputs** with strict JSON schema validation, guaranteeing type-safe, deterministic results every time. The "Wormhole" mode inverts this — Gemini *invents* a tailored goal for the user.
 
@@ -16,17 +16,20 @@ InVision is powered end-to-end by **Google Gemini 3**, which serves as the appli
 
 **7. Conversational Plan Refinement (Gemini 3 Flash)** — A chat interface lets users iteratively modify their plans through natural conversation, with Gemini outputting updated structured plan JSON inline.
 
+**8. Journey Synthesis (Gemini 3 Flash — Thinking Mode)** — The crown jewel. Gemini ingests ALL of a user's goals, milestones, date-change histories, and journal entries, then uses **Thinking Mode** (`thinkingBudget: 2048`) for deep, multi-step reasoning to surface cross-goal behavioral patterns, hidden connections between goals, and a single highest-leverage next action. This is not summarization — it's genuine behavioral analysis that no simple prompt could produce.
+
 ## Technical Rationale: Why Gemini 3?
 The decision to center InVision around the **Google Gemini 3** ecosystem was driven by three technical pillars:
 1.  **Massive Multimodal Context**: The ability to process text, voice, and high-resolution imagery within a single unified context window (~2M tokens) allows InVision to maintain a perfect "mental model" of the user's entire life journey without losing fidelity.
-2.  **Structured Output Latency**: Gemini 2.0 Flash provides near-instantaneous structured JSON generation, which is critical for the "Warp Animation" experience. We achieve 100% schema compliance for complex plan objects.
-3.  **Native Agentic Reasoning**: The 8th integration point (Function Calling) transforms InVision from a passive display tool into an active agent that can update user data, search the live web, and iterate on visual designs autonomously.
+2.  **Structured Output Latency**: Gemini 3 Flash provides near-instantaneous structured JSON generation, which is critical for the "Warp Animation" experience. We achieve 100% schema compliance for complex plan objects.
+3.  **Native Agentic Reasoning**: Function Calling transforms InVision from a passive display tool into an active agent that can update user data, search the live web, and iterate on visual designs autonomously.
+4.  **Thinking Mode**: The Journey Synthesis feature uses Gemini 3's Thinking Mode to allocate dedicated reasoning tokens for deep behavioral analysis — moving beyond surface-level pattern matching to genuine multi-step inference across a user's entire life data.
 
 ---
 
 ## Technical Deep Dive: Function Calling
 The **Vision Guide** isn't just a chatbot; it's a native Gemini Agent. We've implemented a circular reasoning loop where the agent can:
--   `updatePlanPlan`: Autonomously modify the user's strategic milestones based on conversation.
+-   `update_plan`: Autonomously modify the user's strategic milestones based on conversation.
 -   `googleSearch`: Use grounding to verify external resources and citations.
 -   `regenerateVisionImage`: Trigger a new image generation flow if the user wants to adjust their aesthetic.
 

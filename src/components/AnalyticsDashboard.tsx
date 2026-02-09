@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrendingUp, Target, Flame, Trophy, Calendar,
-    CheckCircle2, Clock, Zap, BarChart3, Activity
+    CheckCircle2, Clock, Zap, BarChart3, Activity,
+    Brain, Sparkles, ArrowRight, Link2, Lightbulb, Eye
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { firestoreService, type SavedGoal } from '@/lib/firestore';
+import { geminiService, type JourneySynthesis } from '@/lib/gemini';
 import { MOCK_GOALS } from '@/lib/mockData';
 
 interface AnalyticsData {
@@ -152,6 +154,9 @@ export const AnalyticsDashboard: React.FC = () => {
     const { currentTheme } = useTheme();
     const [goals, setGoals] = useState<SavedGoal[]>([]);
     const [loading, setLoading] = useState(true);
+    const [synthesis, setSynthesis] = useState<JourneySynthesis | null>(null);
+    const [synthesisLoading, setSynthesisLoading] = useState(false);
+    const [synthesisError, setSynthesisError] = useState(false);
 
     useEffect(() => {
         const fetchGoals = async () => {
@@ -174,6 +179,42 @@ export const AnalyticsDashboard: React.FC = () => {
 
         fetchGoals();
     }, [user]);
+
+    const runSynthesis = useCallback(async () => {
+        if (synthesisLoading || goals.length === 0) return;
+        setSynthesisLoading(true);
+        setSynthesisError(false);
+        try {
+            const goalsData = await Promise.all(goals.map(async (goal) => {
+                let journalSnippets: string[] = [];
+                try {
+                    const entries = await firestoreService.getJournalEntries(goal.id || '');
+                    journalSnippets = entries.slice(0, 3).map(e => e.content.slice(0, 120));
+                } catch { /* no journal entries */ }
+
+                return {
+                    title: goal.title,
+                    status: 'status' in goal ? String(goal.status) : 'active',
+                    createdAt: goal.createdAt?.toLocaleDateString?.() || 'unknown',
+                    milestones: (goal.plan?.timeline || []).map(m => ({
+                        name: m.milestone,
+                        completed: !!m.isCompleted,
+                        dateChanges: 'dateHistory' in m && Array.isArray(m.dateHistory)
+                            ? m.dateHistory.length
+                            : 0
+                    })),
+                    journalSnippets,
+                };
+            }));
+            const result = await geminiService.generateJourneySynthesis(goalsData);
+            setSynthesis(result);
+        } catch (error) {
+            console.error('[Synthesis] Failed:', error);
+            setSynthesisError(true);
+        } finally {
+            setSynthesisLoading(false);
+        }
+    }, [goals, synthesisLoading]);
 
     const analytics: AnalyticsData = useMemo(() => {
         const totalGoals = goals.length;
@@ -418,6 +459,195 @@ export const AnalyticsDashboard: React.FC = () => {
                             <span className="font-bold text-green-400">{analytics.completionRate}%</span> completion rate is excellent!
                         </p>
                     </div>
+                </div>
+            </motion.div>
+
+            {/* Journey Synthesis — Gemini 3 Thinking Mode */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="rounded-2xl border border-white/10 overflow-hidden"
+                style={{
+                    background: `linear-gradient(160deg, ${currentTheme.colors.primary}15, ${currentTheme.colors.accent}08, transparent)`
+                }}
+            >
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-5">
+                        <h3 className="text-sm font-medium text-white/70 uppercase tracking-wider flex items-center gap-2">
+                            <Brain className="w-4 h-4" style={{ color: currentTheme.colors.primary }} />
+                            Journey Synthesis
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/50 normal-case tracking-normal font-normal">
+                                Gemini 3 Deep Reasoning
+                            </span>
+                        </h3>
+                        {!synthesis && (
+                            <button
+                                onClick={runSynthesis}
+                                disabled={synthesisLoading || goals.length === 0}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                                style={{
+                                    backgroundColor: `${currentTheme.colors.primary}20`,
+                                    color: currentTheme.colors.primary,
+                                }}
+                            >
+                                {synthesisLoading ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        Thinking deeply...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-4 h-4" />
+                                        Analyze My Journey
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                        {!synthesis && !synthesisLoading && !synthesisError && (
+                            <motion.p
+                                key="placeholder"
+                                exit={{ opacity: 0 }}
+                                className="text-white/40 text-sm text-center py-8"
+                            >
+                                Gemini will use deep reasoning to find hidden patterns across all your goals, journals, and milestones.
+                            </motion.p>
+                        )}
+
+                        {synthesisLoading && (
+                            <motion.div
+                                key="loading"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center justify-center py-10 gap-3"
+                            >
+                                <div className="relative w-12 h-12">
+                                    <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+                                    <div
+                                        className="absolute inset-0 rounded-full border-2 border-t-transparent animate-spin"
+                                        style={{ borderColor: `${currentTheme.colors.primary}80`, borderTopColor: 'transparent' }}
+                                    />
+                                    <Brain className="absolute inset-0 m-auto w-5 h-5 text-white/60" />
+                                </div>
+                                <p className="text-white/50 text-sm">Deep reasoning across {goals.length} goals...</p>
+                            </motion.div>
+                        )}
+
+                        {synthesisError && (
+                            <motion.div
+                                key="error"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="text-center py-8"
+                            >
+                                <p className="text-white/50 text-sm mb-3">Synthesis unavailable right now.</p>
+                                <button
+                                    onClick={runSynthesis}
+                                    className="text-sm underline"
+                                    style={{ color: currentTheme.colors.primary }}
+                                >
+                                    Try again
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {synthesis && (
+                            <motion.div
+                                key="results"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="space-y-5"
+                            >
+                                {/* Narrative */}
+                                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                    <div className="flex items-start gap-3">
+                                        <Eye className="w-4 h-4 mt-1 shrink-0" style={{ color: currentTheme.colors.primary }} />
+                                        <p className="text-sm text-white/80 leading-relaxed italic">
+                                            "{synthesis.overallNarrative}"
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Patterns */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {synthesis.patterns.map((pattern, i) => (
+                                        <div key={i} className="p-4 rounded-xl bg-white/5">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div
+                                                    className="w-2 h-2 rounded-full"
+                                                    style={{
+                                                        backgroundColor: pattern.type === 'strength'
+                                                            ? '#10b981'
+                                                            : pattern.type === 'growth_area'
+                                                                ? '#f59e0b'
+                                                                : currentTheme.colors.primary
+                                                    }}
+                                                />
+                                                <span className="text-xs font-medium text-white/50 uppercase">
+                                                    {pattern.type === 'strength' ? 'Strength' : pattern.type === 'growth_area' ? 'Growth Area' : 'Pattern'}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm font-medium text-white mb-1">{pattern.title}</p>
+                                            <p className="text-xs text-white/60 leading-relaxed">{pattern.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Cross-Goal Connections */}
+                                {synthesis.crossGoalConnections.length > 0 && (
+                                    <div className="space-y-3">
+                                        {synthesis.crossGoalConnections.map((conn, i) => (
+                                            <div key={i} className="p-4 rounded-xl bg-white/5 flex items-start gap-3">
+                                                <Link2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: currentTheme.colors.accent }} />
+                                                <div>
+                                                    <div className="flex flex-wrap gap-2 mb-2">
+                                                        {conn.goals.map((g, j) => (
+                                                            <span
+                                                                key={j}
+                                                                className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/70"
+                                                            >
+                                                                {g}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-xs text-white/60 leading-relaxed">{conn.insight}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Next Best Action */}
+                                <div
+                                    className="p-4 rounded-xl border"
+                                    style={{
+                                        borderColor: `${currentTheme.colors.primary}30`,
+                                        backgroundColor: `${currentTheme.colors.primary}08`
+                                    }}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <Lightbulb className="w-4 h-4 mt-0.5 shrink-0" style={{ color: currentTheme.colors.primary }} />
+                                        <div>
+                                            <p className="text-xs font-medium text-white/50 uppercase mb-1">Highest-Leverage Action</p>
+                                            <p className="text-sm text-white font-medium flex items-center gap-2">
+                                                <ArrowRight className="w-3 h-3 shrink-0" style={{ color: currentTheme.colors.primary }} />
+                                                {synthesis.nextBestAction}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Motivational Reframe */}
+                                <p className="text-xs text-white/40 text-center leading-relaxed px-4">
+                                    {synthesis.motivationalReframe}
+                                </p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </motion.div>
         </div>

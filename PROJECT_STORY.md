@@ -2,9 +2,9 @@
 
 ## The Vision
 InVision was born from a simple yet ambitious idea: **What if a todo list could dream?**
-![InVision Demo Flow](file:///Users/v/.gemini/antigravity/brain/aa139140-5f77-464b-be13-a50cc69bcb52/invision_demo_wormhole.mp4)
+[![InVision Demo](https://img.youtube.com/vi/KJ4fNkX6ovY/maxresdefault.jpg)](https://youtu.be/KJ4fNkX6ovY)
 
-In a world saturated with static productivity tools, we wanted to create a "Living Vision Board" — a platform that doesn't just catalogue tasks, but actively helps users conceptualize, visualize, and manifest their future. Winners of the *Technical Excellence & Innovation* award, InVision isn't just about getting things done; it's about becoming who you want to be.
+In a world saturated with static productivity tools, we wanted to create a "Living Vision Board" — a platform that doesn't just catalogue tasks, but actively helps users conceptualize, visualize, and manifest their future. InVision isn't just about getting things done; it's about becoming who you want to be.
 
 ## Core Philosophy
 The application transforms abstract ambitions into concrete, living plans. It leverages the cutting-edge **Google Gemini 3** to act as a deterministic life coach, breaking down 5-year "moonshots" into actionable 2-week sprints.

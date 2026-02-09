@@ -347,6 +347,21 @@ async function fileToGenerativePart(file: File): Promise<Part> {
     });
 }
 
+export interface JourneySynthesis {
+    overallNarrative: string;
+    patterns: {
+        title: string;
+        description: string;
+        type: string;
+    }[];
+    crossGoalConnections: {
+        goals: string[];
+        insight: string;
+    }[];
+    nextBestAction: string;
+    motivationalReframe: string;
+}
+
 export const geminiService = {
     async generatePlan(goal: string, timeline: string = "flexible", image?: File, isWormhole: boolean = false): Promise<GeneratedPlan> {
         const systemPrompt = isWormhole
@@ -761,6 +776,87 @@ If the image doesn't clearly relate to the goal, still be encouraging and ask ho
         } catch (error) {
             console.error('[ProgressCheck] Analysis failed:', error);
             return "Thanks for sharing your progress photo! Visual documentation is a powerful way to track your journey. Keep capturing these moments — they'll be incredible to look back on.";
+        }
+    },
+
+    // --- Journey Synthesis (Gemini 3 Thinking Mode) ---
+
+    async generateJourneySynthesis(
+        goalsData: { title: string; status: string; milestones: { name: string; completed: boolean; dateChanges: number }[]; journalSnippets: string[]; createdAt: string }[]
+    ): Promise<JourneySynthesis> {
+        console.log('[Synthesis] Starting deep journey analysis with thinking mode...');
+
+        const dataSnapshot = goalsData.map(g => ({
+            goal: g.title,
+            status: g.status,
+            created: g.createdAt,
+            milestones: g.milestones.map(m => `${m.name} (${m.completed ? 'done' : 'pending'}, ${m.dateChanges} date changes)`).join('; '),
+            recentJournal: g.journalSnippets.slice(0, 2).join(' | ')
+        }));
+
+        const prompt = `You are an expert behavioral psychologist and life strategist analyzing a person's complete goal journey.
+
+Here is their full data across ALL goals:
+${JSON.stringify(dataSnapshot, null, 2)}
+
+Using deep reasoning, analyze this data holistically and produce a synthesis. Think step-by-step about:
+- What behavioral PATTERNS emerge across their goals (not within a single goal)?
+- Where do they consistently succeed vs. stall?
+- Are any of their goals secretly connected or reinforcing each other?
+- What is the single highest-leverage action they could take right now?
+
+Return a JSON object with this exact structure:
+{
+  "overallNarrative": "A 2-3 sentence poetic summary of their journey arc so far",
+  "patterns": [
+    { "title": "Pattern name", "description": "What you observed", "type": "strength" | "growth_area" | "observation" }
+  ],
+  "crossGoalConnections": [
+    { "goals": ["Goal A title", "Goal B title"], "insight": "How these goals reinforce each other" }
+  ],
+  "nextBestAction": "The single most impactful thing they should do this week",
+  "motivationalReframe": "A perspective shift — reframe their struggles as evidence of growth"
+}
+
+Include 2-4 patterns, 1-2 cross-goal connections. Be specific to THEIR data, not generic advice.`;
+
+        try {
+            const response = await genAINew.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: prompt,
+                config: {
+                    thinkingConfig: { thinkingBudget: 2048 },
+                    responseMimeType: "application/json",
+                },
+            });
+
+            const text = response.text?.trim() || '{}';
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                console.log('[Synthesis] ✅ Deep analysis complete');
+                return JSON.parse(jsonMatch[0]) as JourneySynthesis;
+            }
+            throw new Error('No valid JSON in response');
+        } catch (error) {
+            console.error('[Synthesis] Primary thinking mode failed:', error);
+            // Fallback without thinking mode
+            try {
+                const response = await genAINew.models.generateContent({
+                    model: "gemini-3-flash-preview",
+                    contents: prompt,
+                    config: {
+                        responseMimeType: "application/json",
+                    },
+                });
+                const text = response.text?.trim() || '{}';
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    return JSON.parse(jsonMatch[0]) as JourneySynthesis;
+                }
+            } catch (fallbackError) {
+                console.error('[Synthesis] Fallback also failed:', fallbackError);
+            }
+            throw error;
         }
     }
 };

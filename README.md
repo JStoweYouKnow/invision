@@ -1,14 +1,14 @@
 # Invision 🌌
 **The AI-Powered Living Vision Board**
 
-> **Winner of Technical Excellence & Innovation** (Target)
+> Built for the **Gemini 3 Hackathon** — 8 distinct Gemini integrations including Thinking Mode
 
-Invision is a next-generation goal-setting platform that uses **Google Gemini 2.0 Flash (Experimental)** to transform abstract ambitions into concrete, living plans. Unlike static todo lists, Invision creates an immersive, multi-sensory environment—ranging from cosmic voids to neural networks—that evolves as you grow.
+Invision is a next-generation goal-setting platform that uses **Google Gemini 3 Flash** to transform abstract ambitions into concrete, living plans. Unlike static todo lists, Invision creates an immersive, multi-sensory environment—ranging from cosmic voids to neural networks—that evolves as you grow.
 
 ---
 
 ## 🚀 Key Innovation: The "Wormhole"
-Powered by `gemini-2.0-flash-exp`, the **Wormhole** feature acts as a deterministic life coach. It doesn't just ask "what do you want to do?"; it analyzes your profile and *invents* a tailored, ambitious life goal for you, complete with:
+Powered by `gemini-3-flash-preview`, the **Wormhole** feature acts as a deterministic life coach. It doesn't just ask "what do you want to do?"; it analyzes your profile and *invents* a tailored, ambitious life goal for you, complete with:
 *   **Visionary Description**: A sensory-rich narrative of your future success.
 *   **Strategic Timeline**: A backward-engineered plan from the goal date to *today*.
 *   **Daily Habits**: Micro-actions to build momentum immediately.
@@ -17,9 +17,10 @@ Powered by `gemini-2.0-flash-exp`, the **Wormhole** feature acts as a determinis
 
 ## 🧠 Powered by Gemini 3 (3.0 Flash)
 We leverage the cutting-edge multimodal capabilities of Gemini:
-*   **Deep Reasoning**: Gemini 2.0 breaks down complex 5-year goals (e.g., "Colonize Mars") into actionable 2-week sprints.
-*   **Visual Imagination**: We use `gemini-2.0-flash-exp-image-generation` (with Imagen 3 fallback) to generate cinematic, 8k visualization art for every goal.
+*   **Deep Reasoning**: Gemini 3 breaks down complex 5-year goals (e.g., "Colonize Mars") into actionable 2-week sprints.
+*   **Visual Imagination**: We use `gemini-3-pro-image-preview` (with Imagen 3 fallback) to generate cinematic, 8k visualization art for every goal.
 *   **Contextual Chat**: The "Guide" (AI assistant) retains full context of your unique timeline to offer relevant advice.
+*   **Journey Synthesis (Thinking Mode)**: Gemini 3's thinking mode performs deep behavioral analysis across all your goals, journals, and milestones to surface hidden patterns and your single highest-leverage next action.
 
 ---
 
@@ -44,7 +45,7 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
 ---
 
 ## 🛠️ Technology Stack
-*   **AI**: Google Gemini 2.0 Flash (via Google Generative AI SDK)
+*   **AI**: Google Gemini 3 Flash & Pro (via Google Generative AI SDK)
 *   **Frontend**: React 18, TypeScript, Vite
 *   **Styling**: TailwindCSS, Framer Motion (Complex Physics Animations)
 *   **Backend**: Firebase Firestore (Real-time Database), Firebase Auth
@@ -61,7 +62,7 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/invision.git
+    git clone https://github.com/vaydr/invision.git
     cd invision
     ```
 
@@ -71,7 +72,7 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
     ```
 
 3.  Set up environment variables:
-    Create a `.env` file` and add:
+    Create a `.env` file and add:
     ```env
     VITE_GEMINI_API_KEY=your_gemini_key_here
     VITE_FIREBASE_API_KEY=your_firebase_config
@@ -86,7 +87,7 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
 ## 🏗️ Architecture
 InVision features a high-performance, vertical integrated architecture that leverages Gemini 3 as its multimodal core.
 
-For a detailed technical breakdown, see **[ARCHITECTURE.md](file:///Users/v/Documents/invision/ARCHITECTURE.md)**.
+For a detailed technical breakdown, see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
 ---
 

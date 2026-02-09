@@ -60,6 +60,15 @@
 │  │  • Conversational plan editing                    │   │
 │  │  • Inline JSON extraction via delimiters          │   │
 │  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  Journey Synthesis (Flash — Thinking Mode)        │   │
+│  │                                                    │   │
+│  │  • Cross-goal behavioral pattern analysis         │   │
+│  │  • Deep reasoning via thinkingBudget: 2048        │   │
+│  │  • Hidden goal-to-goal connections                │   │
+│  │  • Highest-leverage next action                   │   │
+│  └──────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────┐
