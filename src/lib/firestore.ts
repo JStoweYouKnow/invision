@@ -133,20 +133,20 @@ const setQuotaExceeded = () => {
     }
 
     // Otherwise just disable Firestore network to stop retry attempts
-    disableFirestoreNetwork().catch(() => {});
+    disableFirestoreNetwork().catch(() => { });
 };
 
 const clearQuotaExceeded = () => {
     localStorage.removeItem(QUOTA_EXCEEDED_KEY);
     // Re-enable Firestore network
-    enableFirestoreNetwork().catch(() => {})
+    enableFirestoreNetwork().catch(() => { })
 };
 
 // Helper to check if error is quota exceeded
 const isQuotaError = (error: unknown): boolean => {
     const firebaseError = error as { code?: string; message?: string };
     return firebaseError.code === 'resource-exhausted' ||
-           (firebaseError.message?.includes('Quota exceeded') ?? false);
+        (firebaseError.message?.includes('Quota exceeded') ?? false);
 };
 
 // Helper to revive dates from JSON
@@ -524,6 +524,59 @@ export const firestoreService = {
             console.warn("Error fetching public goals (likely permission), falling back to mocks:", error);
             return [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS].filter(g => g.isPublic);
         }
+    },
+
+    /**
+     * Subscribe to public goals for real-time updates
+     */
+    subscribeToPublicGoals: (callback: (goals: SavedGoal[]) => void): () => void => {
+        // 1. Initial callback with mocks immediately (so UI isn't empty)
+        const mockPublicGoals = [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS].filter(g => g.isPublic);
+        // callback(mockPublicGoals); // Optional: call immediately if you want instant render
+
+        let unsubFirestore: (() => void) | null = null;
+
+        try {
+            const q = query(
+                collection(db, 'goals'),
+                where('isPublic', '==', true),
+                orderBy('createdAt', 'desc'),
+                limit(50) // Higher limit for galaxy view
+            );
+
+            unsubFirestore = onSnapshot(q, (snapshot) => {
+                const realGoals = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    createdAt: toDate(doc.data().createdAt),
+                })) as SavedGoal[];
+
+                // Merge with mocks
+                // Filter out any mocks that might conflict with real IDs (unlikely but safe)
+                const combined = [...realGoals];
+                mockPublicGoals.forEach(mock => {
+                    if (!combined.some(r => r.id === mock.id)) {
+                        combined.push(mock);
+                    }
+                });
+
+                // Sort by newest first
+                combined.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+                callback(combined);
+            }, (error) => {
+                console.warn("Firestore public subscription failed:", error);
+                // Fallback to mocks only
+                callback(mockPublicGoals);
+            });
+        } catch (error) {
+            console.error("Error setting up public subscription:", error);
+            callback(mockPublicGoals);
+        }
+
+        return () => {
+            if (unsubFirestore) unsubFirestore();
+        };
     },
 
     getUserProfile: async (userId: string): Promise<UserProfile | null> => {

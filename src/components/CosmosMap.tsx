@@ -8,6 +8,7 @@ import { VoyageTrajectory } from './VoyageTrajectory';
 import { Constellation } from './Constellation';
 import { TheGuide } from './TheGuide';
 import { ZoomIn, ZoomOut, Home, Compass } from 'lucide-react';
+import { useGalaxyEngine } from '@/hooks/useGalaxyEngine';
 
 interface CosmosMapProps {
     goals: SavedGoal[];
@@ -17,22 +18,6 @@ interface CosmosMapProps {
     showGuide?: boolean;
     onGoalClick?: (goalId: string) => void;
 }
-
-// Calculate positions in a spiral galaxy pattern
-const getGalaxyPosition = (index: number, _total: number, zoomLevel: number) => {
-    // Golden angle for natural spiral distribution
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const angle = index * goldenAngle;
-    const radius = Math.sqrt(index + 1) * 12;
-
-    const centerX = 50;
-    const centerY = 50;
-
-    return {
-        x: centerX + Math.cos(angle) * radius / zoomLevel,
-        y: centerY + Math.sin(angle) * radius / zoomLevel,
-    };
-};
 
 // Map goal status to destination status (derived from plan progress)
 const getDestinationStatus = (goal: SavedGoal) => {
@@ -76,16 +61,24 @@ export const CosmosMap: React.FC<CosmosMapProps> = ({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
 
-    // Calculate goal positions
+    // Use Galaxy Engine for Physics
+    const { nodes: galaxyNodes } = useGalaxyEngine(goals, {
+        zoomLevel,
+        centerX: 50,
+        centerY: 50,
+        spreadFactor: 12 // Matches original 12 factor
+    });
+
+    // Augment nodes with metadata
     const goalPositions = useMemo(() => {
-        return goals.map((goal, index) => ({
-            goal,
-            position: getGalaxyPosition(index, goals.length, zoomLevel),
-            status: getDestinationStatus(goal),
-            progress: getGoalProgress(goal),
-            celestialType: getCelestialType(index),
+        return galaxyNodes.map((node) => ({
+            goal: node.item,
+            position: { x: node.x, y: node.y },
+            status: getDestinationStatus(node.item),
+            progress: getGoalProgress(node.item),
+            celestialType: getCelestialType(node.index),
         }));
-    }, [goals, zoomLevel]);
+    }, [galaxyNodes]);
 
     // Handle zoom
     const handleZoom = useCallback((direction: 'in' | 'out') => {

@@ -2,7 +2,7 @@
 
 ## The Vision
 InVision was born from a simple yet ambitious idea: **What if a todo list could dream?**
-![InVision Demo Flow](public/images/demo-walkthrough.mp4)
+![InVision Demo Flow](file:///Users/v/.gemini/antigravity/brain/aa139140-5f77-464b-be13-a50cc69bcb52/invision_demo_wormhole.mp4)
 
 In a world saturated with static productivity tools, we wanted to create a "Living Vision Board" — a platform that doesn't just catalogue tasks, but actively helps users conceptualize, visualize, and manifest their future. Winners of the *Technical Excellence & Innovation* award, InVision isn't just about getting things done; it's about becoming who you want to be.
 
@@ -48,7 +48,7 @@ The project has seen rapid iteration and refinement during the final sprint:
 -   **Goal Templates Library**: Introduced a curated library of moonshot goals (Health, Career, Creativity) to solve the "blank canvas" problem and inspire users instantly.
 -   **Analytics Dashboard**: Added a statistical view of "life progress," visualizing completion rates and active milestones across all dimensions.
 -   **Interactive Guidance**: Implemented a comprehensive tooltip system to guide users through the rich, 3D interface without breaking immersion.
--   **3D Engine Overhaul**: Migrated the core visualization from CSS transforms to a high-fidelity **React Three Fiber (WebGL)** engine, enabling photorealistic lighting, atmospheric fog, and complex organic geometries.
+-   **Galaxy Physics Engine**: Migrated the core visualization to a custom **Galaxy Physics Engine**. This mathematically-driven system uses the Golden Spiral (Phyllotaxis) algorithm to procedurally generate infinite, scalable universes, rendered with hardware-accelerated **Framer Motion** for 60fps performance on any device.
 -   **Visual Polish**: Enhanced the "Living Forest" theme with a composite "Mother Tree," floating sapling islands, and particle effects.
 -   **Data Consistency**: Moved entire persistence layer to robust storage, ensuring user journeys are never lost.
 -   **Self-Healing Vision System**: Engineered a robust fallback architecture for AI imagery. If primary generation fails, the system intelligently retries with safe prompts and gracefully degrades to high-quality curated stock visuals, ensuring no user is ever left with a blank canvas.

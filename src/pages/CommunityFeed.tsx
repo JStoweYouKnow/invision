@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, Sparkles, UserPlus, Users, X, Check, ChevronDown } from 'lucide-react';
+import { User as UserIcon, Sparkles, UserPlus, Users, X, Check, ChevronDown, Radio } from 'lucide-react';
 import { firestoreService, type SavedGoal, type GoalCategory } from '@/lib/firestore';
 import { MOCK_GOALS, MOCK_ADDITIONAL_GOALS } from '@/lib/mockData';
 import { ThemeEntity } from '@/components/ThemeEntity';
@@ -12,6 +12,7 @@ import { useMessaging } from '@/contexts/MessagingContext';
 import { HomeButton } from '@/components/HomeButton';
 import { NavigationMenu } from '@/components/NavigationMenu';
 import { ThemeQuickToggle } from '@/components/ThemeQuickToggle';
+import { useGalaxyEngine } from '@/hooks/useGalaxyEngine';
 
 interface CommunityFeedProps {
     demoMode?: boolean;
@@ -63,6 +64,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [showFriendsOnly, setShowFriendsOnly] = useState(false);
     const [friendIds, setFriendIds] = useState<string[]>([]);
+    const [newSignalDetected, setNewSignalDetected] = useState(false);
+    const prevGoalCountRef = useRef(0);
 
     const navigate = useNavigate();
     const { currentTheme } = useTheme();
@@ -73,29 +76,30 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
     const themeKey = currentTheme.id === 'custom' ? 'custom' : currentTheme.id;
     const text = themeText[themeKey as keyof typeof themeText] || themeText.space;
 
-    // Load goals
+    // Load goals with Real-time Subscription
     useEffect(() => {
-        const fetchGoals = async () => {
-            if (demoMode) {
-                // Combine standard mock goals and additional ones for demo
-                const allMock = [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS];
-                setTimeout(() => {
-                    setGoals(allMock);
-                    setLoading(false);
-                }, 800);
-                return;
-            }
+        if (demoMode) {
+            // Combine standard mock goals and additional ones for demo
+            const allMock = [...MOCK_GOALS, ...MOCK_ADDITIONAL_GOALS];
+            setGoals(allMock);
+            setLoading(false);
+            return;
+        }
 
-            try {
-                const publicGoals = await firestoreService.getPublicGoals();
-                setGoals(publicGoals);
-            } catch (error) {
-                console.error("Failed to fetch public goals", error);
-            } finally {
-                setLoading(false);
+        const unsubscribe = firestoreService.subscribeToPublicGoals((updatedGoals) => {
+            setGoals(updatedGoals);
+            setLoading(false);
+
+            // Detect new additions (simple count check for now)
+            if (updatedGoals.length > prevGoalCountRef.current && prevGoalCountRef.current > 0) {
+                setNewSignalDetected(true);
+                // Auto-hide toast after 3s
+                setTimeout(() => setNewSignalDetected(false), 3000);
             }
-        };
-        fetchGoals();
+            prevGoalCountRef.current = updatedGoals.length;
+        });
+
+        return () => unsubscribe();
     }, [demoMode]);
 
     // Load user friends
@@ -164,19 +168,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
         });
     }, [goals, selectedCategory, showFriendsOnly, user, friendIds]);
 
-    // Calculate spiral positions
-    const spiralNodes = useMemo(() => {
-        // Use filtered goals
-        return filteredGoals.map((goal, index) => {
-            const angle = index * 2.4;
-            const radius = 60 + (35 * Math.sqrt(index));
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-            const size = 40 + ((goal.title.length * 7) % 20);
-
-            return { goal, x, y, size, delay: index * 0.05, entityIndex: index };
-        });
-    }, [filteredGoals]);
+    // Use Galaxy Engine for Physics
+    const { nodes: spiralNodes } = useGalaxyEngine(filteredGoals, {
+        spreadFactor: 35, // Match previous spread
+        centerX: 50,
+        centerY: 50,
+        zoomLevel: 1
+    });
 
     if (loading) {
         return (
@@ -321,6 +319,27 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                 </div>
             </header>
 
+            {/* New Signal Toast - Top Right */}
+            <AnimatePresence>
+                {newSignalDetected && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 50, scale: 0.8 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 50, scale: 0.8 }}
+                        className="fixed top-24 right-6 z-50 bg-brand-purple/20 backdrop-blur-xl border border-brand-purple/50 rounded-lg pl-3 pr-4 py-2 flex items-center gap-3 shadow-[0_0_20px_rgba(147,51,234,0.4)]"
+                    >
+                        <div className="relative">
+                            <Radio className="w-5 h-5 text-brand-purple animate-pulse" />
+                            <div className="absolute inset-0 bg-brand-purple/50 rounded-full animate-ping" />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-xs font-bold text-white uppercase tracking-wider">Signal Detected</div>
+                            <div className="text-[10px] text-white/70">New vision entered the sector</div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Solar Systems Badge - Fixed Bottom Right */}
             <div
                 className="fixed z-50 pointer-events-auto bg-white/5 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 text-xs font-medium text-white/80 flex items-center gap-2"
@@ -337,44 +356,51 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
             >
                 <AnimatePresence mode="popLayout">
                     {spiralNodes.map((node) => {
-                        const isHovered = hoveredGoal === node.goal.id;
-                        const isFriend = user ? friendIds.includes(node.goal.userId) : false;
+                        const goal = node.item; // Unpack from engine node
+                        const isHovered = hoveredGoal === goal.id;
+                        const isFriend = user ? friendIds.includes(goal.userId) : false;
+
+                        // Calculate dynamic size based on hook output
+                        // We can still apply the variation logic here or move to hook options
+                        // useGalaxyEngine gives us basic scale=1, let's keep the variation
+                        const size = 40 + ((goal.title.length * 7) % 20);
 
                         return (
                             <motion.div
-                                key={node.goal.id}
+                                key={goal.id}
                                 className="absolute pointer-events-auto"
                                 layout
                                 initial={{ scale: 0, opacity: 0 }}
                                 animate={{
                                     scale: 1,
                                     opacity: 1,
-                                    x: node.x,
-                                    y: node.y
+                                    x: node.x + '%', // Engine returns percentage coordinates
+                                    y: node.y + '%'
                                 }}
                                 exit={{ scale: 0, opacity: 0 }}
                                 transition={{
                                     type: "spring",
                                     stiffness: 100,
                                     damping: 20,
-                                    delay: node.delay // Stagger effect
+                                    delay: node.index * 0.05 // Stagger effect
                                 }}
                                 style={{
-                                    left: '50vw',
-                                    top: '50vh',
+                                    left: 0, // Engine provides absolute percentage relative to container 0,0
+                                    top: 0,
                                     zIndex: isHovered ? 60 : 30
                                 }}
                             >
                                 <div
                                     className="relative group cursor-pointer"
-                                    onMouseEnter={() => setHoveredGoal(node.goal.id || null)}
+                                    style={{ transform: 'translate(-50%, -50%)' }} // Center the node on the coordinate
+                                    onMouseEnter={() => setHoveredGoal(goal.id || null)}
                                     onMouseLeave={() => setHoveredGoal(null)}
                                     onClick={(e) => {
-                                        if (hoveredGoal !== node.goal.id) {
+                                        if (hoveredGoal !== goal.id) {
                                             e.preventDefault();
-                                            setHoveredGoal(node.goal.id || null);
+                                            setHoveredGoal(goal.id || null);
                                         } else {
-                                            navigate(`/plan/${node.goal.id}`);
+                                            navigate(`/plan/${goal.id}`);
                                         }
                                     }}
                                 >
@@ -384,9 +410,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                         transition={{ type: "spring", stiffness: 300 }}
                                     >
                                         <ThemeEntity
-                                            index={node.entityIndex}
-                                            size={node.size}
-                                            seed={node.goal.id}
+                                            index={node.index}
+                                            size={size}
+                                            seed={goal.id}
                                         />
 
                                         {/* Friend Indicator */}
@@ -405,8 +431,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    {node.goal.authorPhoto ? (
-                                                        <img src={node.goal.authorPhoto} alt="Author" className="w-8 h-8 rounded-full border border-white/20 object-cover" />
+                                                    {goal.authorPhoto ? (
+                                                        <img src={goal.authorPhoto} alt="Author" className="w-8 h-8 rounded-full border border-white/20 object-cover" />
                                                     ) : (
                                                         <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
                                                             <UserIcon className="w-4 h-4 text-white" />
@@ -414,19 +440,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                                     )}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-sm text-white font-medium truncate flex items-center gap-2">
-                                                            {node.goal.authorName || 'Anonymous'}
+                                                            {goal.authorName || 'Anonymous'}
                                                             {isFriend && <span className="bg-green-500/20 text-green-400 text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wider font-bold">Friend</span>}
                                                         </div>
-                                                        <div className="text-xs text-white/50 truncate">{node.goal.category || 'Visionary'}</div>
+                                                        <div className="text-xs text-white/50 truncate">{goal.category || 'Visionary'}</div>
                                                     </div>
                                                 </div>
 
                                                 <h3 className="text-white font-bold leading-tight mb-2 text-sm line-clamp-2">
-                                                    {node.goal.title}
+                                                    {goal.title}
                                                 </h3>
 
                                                 <p className="text-white/70 text-xs line-clamp-2 mb-3">
-                                                    {node.goal.description}
+                                                    {goal.description}
                                                 </p>
 
                                                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10 gap-2">
@@ -434,7 +460,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleToggleFriend(node.goal.userId);
+                                                            handleToggleFriend(goal.userId);
                                                         }}
                                                         className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${isFriend ? 'bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                                                     >
@@ -455,7 +481,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleMessageUser(node.goal.userId);
+                                                            handleMessageUser(goal.userId);
                                                         }}
                                                         className="flex-1 py-1.5 bg-brand-purple/20 hover:bg-brand-purple/40 border border-brand-purple/50 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
                                                     >
@@ -491,7 +517,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                 <NavigationMenu demoMode={demoMode} />
             </div>
 
-            {/* Instruction Toast */}
+            {/* Instruction Toast - Bottom Center */}
             <motion.div
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
