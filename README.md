@@ -15,7 +15,7 @@ Powered by `gemini-2.0-flash-exp`, the **Wormhole** feature acts as a determinis
 
 ---
 
-## 🧠 Powered by Gemini 3 (2.0 Flash)
+## 🧠 Powered by Gemini 3 (3.0 Flash)
 We leverage the cutting-edge multimodal capabilities of Gemini:
 *   **Deep Reasoning**: Gemini 2.0 breaks down complex 5-year goals (e.g., "Colonize Mars") into actionable 2-week sprints.
 *   **Visual Imagination**: We use `gemini-2.0-flash-exp-image-generation` (with Imagen 3 fallback) to generate cinematic, 8k visualization art for every goal.
@@ -81,9 +81,24 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
     ```bash
     npm run dev
     ```
+---
+
+## 🏗️ Architecture
+InVision features a high-performance, vertical integrated architecture that leverages Gemini 3 as its multimodal core.
+
+For a detailed technical breakdown, see **[ARCHITECTURE.md](file:///Users/v/Documents/invision/ARCHITECTURE.md)**.
 
 ---
 
-## 🔮 Future Roadmap
-*   **AR/VR Integration**: Walk through your "Forest of Goals" in mixed reality.
-*   **Multi-Agent Simulations**: Simulating potential future blockers using competing AI agents.
+## 🔮 Strategic Roadmap
+
+### Phase 1: AR/VR Integration (Next 6 Months)
+Walk through your "Forest of Goals" in mixed reality using WebXR. Physically "prune" your leaves or "terraform" your planets.
+
+### Phase 2: Multi-Agent Simulations
+Using competing Gemini agents to simulate potential future blockers (e.g., market crashes, health setbacks) to help users build "antifragile" plans.
+
+### Phase 3: Monetization & B2B Scaling
+*   **Premium Visualization Packs**: Direct-to-consumer digital theme sales.
+*   **Corporate "Team Visioning"**: Using InVision for enterprise strategic planning, where the entire company contributes to a shared galactic goal.
+*   **Executive Coaching API**: White-labeling our AI Guide for professional life coaches.

@@ -54,10 +54,17 @@ The project has seen rapid iteration and refinement during the final sprint:
 -   **Self-Healing Vision System**: Engineered a robust fallback architecture for AI imagery. If primary generation fails, the system intelligently retries with safe prompts and gracefully degrades to high-quality curated stock visuals, ensuring no user is ever left with a blank canvas.
 -   **Timeline Engine Stability**: Hardened the timeline rendering logic against data corruption, ensuring smooth visualization even with malformed or legacy plan data.
 
-## The Future
-InVision is just getting started. Our roadmap includes:
--   **AR/VR Integration**: Walking through your "Forest of Goals" in mixed reality.
--   **Multi-Agent Simulations**: Using competing AI agents to simulate potential future blockers and help users prepare for them.
--   **Community**: A "Galaxy Feed" where users can fork visions and find real-time motivation from other dreamers.
+---
+
+## Social Impact & Inclusion
+InVision was built with **cognitive accessibility** at its core. Traditional productivity tools rely heavily on abstract lists and text clusters, which can be overwhelming for neurodivergent users (ADHD, Autism) or those with executive dysfunction.
+
+By transforming "tasks" into **tangible visual metaphors** (growing trees, terraforming planets), we create a dopamine-positive feedback loop that makes long-term goal pursuing more manageable and emotionally rewarding.
+
+## The Future: A Galactic Odyssey
+Our roadmap scales InVision from a personal tool to a planetary platform:
+-   **Phase 1: AR/VR Integration**: Walking through your "Forest of Goals" in mixed reality using WebXR.
+-   **Phase 2: Multi-Agent Simulations**: Using competing Gemini agents to simulate potential future blockers (e.g., market crashes, health setbacks) to help users build "antifragile" plans.
+-   **Phase 3: B2B Scaling**: Corporate "Team Visioning" where entire companies contribute to shared galactic goals.
 
 InVision is more than an app; it's a partner in your personal evolution.

@@ -16,6 +16,22 @@ InVision is powered end-to-end by **Google Gemini 3**, which serves as the appli
 
 **7. Conversational Plan Refinement (Gemini 3 Flash)** — A chat interface lets users iteratively modify their plans through natural conversation, with Gemini outputting updated structured plan JSON inline.
 
-**8. Function Calling / Agentic Workflows (Gemini 3 Flash)** — The Vision Guide chat uses native Gemini Function Calling to autonomously execute actions: updating plan structure, searching the web for verified resources via Google Search grounding, and triggering vision image regeneration — all within a natural conversation flow.
+## Technical Rationale: Why Gemini 3?
+The decision to center InVision around the **Google Gemini 3** ecosystem was driven by three technical pillars:
+1.  **Massive Multimodal Context**: The ability to process text, voice, and high-resolution imagery within a single unified context window (~2M tokens) allows InVision to maintain a perfect "mental model" of the user's entire life journey without losing fidelity.
+2.  **Structured Output Latency**: Gemini 2.0 Flash provides near-instantaneous structured JSON generation, which is critical for the "Warp Animation" experience. We achieve 100% schema compliance for complex plan objects.
+3.  **Native Agentic Reasoning**: The 8th integration point (Function Calling) transforms InVision from a passive display tool into an active agent that can update user data, search the live web, and iterate on visual designs autonomously.
 
-Gemini 3 is not a feature bolted onto InVision — it **is** InVision. Every core user interaction flows through the Gemini API.
+---
+
+## Technical Deep Dive: Function Calling
+The **Vision Guide** isn't just a chatbot; it's a native Gemini Agent. We've implemented a circular reasoning loop where the agent can:
+-   `updatePlanPlan`: Autonomously modify the user's strategic milestones based on conversation.
+-   `googleSearch`: Use grounding to verify external resources and citations.
+-   `regenerateVisionImage`: Trigger a new image generation flow if the user wants to adjust their aesthetic.
+
+This implementation uses **Gemini 3's native Tool Calling capability**, providing a significantly more reliable and efficient interaction than traditional prompt-engineered "text-davinci" style loops.
+
+---
+
+InVision is more than an app; it represents the next evolution of AI-driven personal manifestation.

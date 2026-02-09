@@ -123,13 +123,13 @@ export const PlanDetailsPage: React.FC = () => {
     const handleResume = async () => {
         if (!goal || !goal.id) return;
         try {
-            const result = await firestoreService.resumeGoal(goal.id);
+            await firestoreService.resumeGoal(goal.id);
             // Refetch the goal to get updated timeline with shifted dates
             const updatedGoal = await firestoreService.getGoalById(goal.id);
             if (updatedGoal) {
                 setGoal(updatedGoal);
             }
-            console.log(`Goal resumed, dates shifted by ${result.daysShifted} days`);
+            // Goal resumed
         } catch (error) {
             console.error("Failed to resume goal:", error);
         }
@@ -298,7 +298,7 @@ export const PlanDetailsPage: React.FC = () => {
 
                                 // Persist
                                 if (goal.id.startsWith('mock-') || goal.id.startsWith('goal_')) {
-                                    console.log('Mock/Demo: Persisting vision image update locally');
+                                    // Mock/Demo persistence
                                     // For mock goals, we rely on the optimistic update above.
                                     // In a real app we'd update the mock store, but for this demo session, 
                                     // local state is sufficient as long as we don't crash.

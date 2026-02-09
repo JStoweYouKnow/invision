@@ -129,7 +129,6 @@ const setQuotaExceeded = () => {
 
     // If backup Firebase is available and we're not already using it, switch
     if (hasBackupFirebaseConfig() && !isUsingBackupFirebase()) {
-        console.log('Quota exceeded on primary - switching to backup Firebase');
         switchToBackupFirebase(); // This will reload the page
         return;
     }
@@ -242,7 +241,6 @@ export const firestoreService = {
 
     saveGoal: async (userId: string, plan: GeneratedPlan, visionImage: string, authorName?: string, authorPhoto?: string, celestialType?: CelestialType): Promise<string> => {
         if (userId === MOCK_USER.uid) {
-            console.log("Mock User: 'Saving' goal locally (skipped Firestore write).");
             return `mock-goal-${Date.now()}`;
         }
 
@@ -1405,7 +1403,6 @@ export const firestoreService = {
     async resumeGoal(goalId: string): Promise<{ daysShifted: number }> {
         // Mock handling
         if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
-            console.log("Mock User: Resuming goal", goalId);
             return { daysShifted: 0 };
         }
 

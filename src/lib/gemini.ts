@@ -60,13 +60,11 @@ async function compressImage(dataUri: string, maxSizeBytes: number = 800000, qua
             let currentQuality = quality;
             let result = canvas.toDataURL('image/jpeg', currentQuality);
 
-            while (result.length > maxSizeBytes && currentQuality > 0.3) {
+            if (result.length > maxSizeBytes && currentQuality > 0.3) {
                 currentQuality -= 0.1;
                 result = canvas.toDataURL('image/jpeg', currentQuality);
-                console.log(`[ImageGen] Compressing: quality=${currentQuality.toFixed(1)}, size=${result.length}`);
             }
 
-            console.log(`[ImageGen] Final compressed size: ${result.length} bytes`);
             resolve(result);
         };
         img.onerror = () => reject(new Error('Failed to load image for compression'));
@@ -313,16 +311,14 @@ async function generateWithFallback<T>(
     action: (modelName: string) => Promise<T>
 ): Promise<T> {
     try {
-        console.log(`[Gemini] Attempting ${operationName} with PRIMARY model: ${PRIMARY_MODEL}`);
         return await action(PRIMARY_MODEL);
     } catch (error) {
-        console.warn(`[Gemini] ${operationName} failed with PRIMARY model. Error:`, error);
-        console.log(`[Gemini] Retrying ${operationName} with BACKUP model: ${BACKUP_MODEL}`);
+        console.warn(`[Gemini] ${operationName} primary attempt failed, retrying with backup...`);
         try {
             return await action(BACKUP_MODEL);
         } catch (backupError) {
-            console.error(`[Gemini] ${operationName} failed with BACKUP model. giving up. Error:`, backupError);
-            throw backupError; // Throw the original or new error? Usually the backup error is strictly what failed last.
+            console.error(`[Gemini] ${operationName} critical failure:`, backupError);
+            throw backupError;
         }
     }
 }
@@ -477,16 +473,13 @@ Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect
                     const imagePart = part as ImageInlineData;
                     if (imagePart.inlineData) {
                         let dataUri = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-                        console.log('[ImageGen] ✅ gemini-3-pro-image-preview SUCCESS. Data URI length:', dataUri.length);
 
                         // Compress if too large for Firestore
                         if (dataUri.length > 900000) {
-                            console.log('[ImageGen] ⚠️ Image too large, compressing...');
                             try {
                                 dataUri = await compressImage(dataUri, 800000, 0.75);
-                                console.log('[ImageGen] ✅ Compression successful. New size:', dataUri.length);
                             } catch (compressError) {
-                                console.error('[ImageGen] ❌ Compression failed:', compressError);
+                                console.error('[ImageGen] Compression failed:', compressError);
                                 throw new Error("Image compression failed");
                             }
                         }
