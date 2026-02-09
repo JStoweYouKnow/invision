@@ -1,9 +1,17 @@
 # Invision 🌌
 **The AI-Powered Living Vision Board**
 
-> Built for the **Gemini 3 Hackathon** — 8 distinct Gemini integrations including Thinking Mode
+> Built for the **Gemini 3 Hackathon** — 9 distinct Gemini integrations including Thinking Mode & Streaming
 
 Invision is a next-generation goal-setting platform that uses **Google Gemini 3 Flash** to transform abstract ambitions into concrete, living plans. Unlike static todo lists, Invision creates an immersive, multi-sensory environment—ranging from cosmic voids to neural networks—that evolves as you grow.
+
+---
+
+## 🌍 Why This Matters
+
+An estimated **15-20% of the world's population is neurodivergent** (WHO). For people with ADHD, autism, or executive dysfunction, traditional productivity tools — text-heavy lists and abstract Gantt charts — create more anxiety than motivation. Meanwhile, 92% of people who set New Year's goals fail to achieve them (University of Scranton).
+
+InVision attacks both problems at once: Gemini 3 generates the *plan*, and immersive visualization provides the *motivation*. A student with ADHD types "I want to become a software engineer." The Wormhole analyzes their profile and generates a 2-year plan — broken into 2-week sprints with daily habits. They see a cinematic image of their future self at a standing desk in a sunlit office. Each milestone appears as a planet in their personal cosmos. When they complete "Build First Portfolio Project," the planet terraforms from barren rock to ocean blue — instant, visceral proof of progress. Their AI journal asks: *"What did finishing that project teach you about how you learn?"* This isn't a checklist. It's a relationship with your future self.
 
 ---
 
@@ -21,6 +29,7 @@ We leverage the cutting-edge multimodal capabilities of Gemini:
 *   **Visual Imagination**: We use `gemini-3-pro-image-preview` (with Imagen 3 fallback) to generate cinematic, 8k visualization art for every goal.
 *   **Contextual Chat**: The "Guide" (AI assistant) retains full context of your unique timeline to offer relevant advice.
 *   **Journey Synthesis (Thinking Mode)**: Gemini 3's thinking mode performs deep behavioral analysis across all your goals, journals, and milestones to surface hidden patterns and your single highest-leverage next action.
+*   **Warp-Speed Streaming**: Real-time token streaming for all chat responses, ensuring a zero-lag, lifelike interaction with the Vision Guide.
 
 ---
 
@@ -72,10 +81,9 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
     ```
 
 3.  Set up environment variables:
-    Create a `.env` file and add:
-    ```env
-    VITE_GEMINI_API_KEY=your_gemini_key_here
-    VITE_FIREBASE_API_KEY=your_firebase_config
+    Copy `.env.example` to `.env` and fill in your keys:
+    ```bash
+    cp .env.example .env
     ```
 
 4.  Run the development server:
@@ -85,9 +93,11 @@ We replaced the Gantt chart with a **Living Timeline**. As you complete mileston
 ---
 
 ## 🏗️ Architecture
-InVision features a high-performance, vertical integrated architecture that leverages Gemini 3 as its multimodal core.
+InVision features a high-performance, vertically integrated architecture that leverages Gemini 3 as its multimodal core.
 
 For a detailed technical breakdown, see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
+
+For third-party services and dependency disclosure, see **[THIRD_PARTY.md](./THIRD_PARTY.md)**.
 
 ---
 

@@ -1,9 +1,44 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write if the user is signed in
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // Goals: owner can read/write; public goals readable by any authenticated user
+    match /goals/{goalId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || resource.data.isPublic == true);
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // User profiles: only the owner can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == userId;
+    }
+
+    // Conversations: only the owner can access
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Messages subcollection inherits parent conversation ownership
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Journal entries: only the owner can access
+    match /journal_entries/{entryId} {
+      allow read: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
     }
   }
 }

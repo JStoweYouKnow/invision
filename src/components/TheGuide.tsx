@@ -114,57 +114,113 @@ export const TheGuide: React.FC<TheGuideProps> = ({
 
         try {
             if (chatSession) {
-                const result = await chatSession.sendMessage(userMsg);
-                let response = result.response;
+                // Stream the response token-by-token for a live "AI thinking" effect
+                const streamResult = await chatSession.sendMessageStream(userMsg);
 
-                // Function call loop — handle one or more function calls
-                while (response.functionCalls()?.length) {
-                    const functionCalls = response.functionCalls()!;
-                    const functionResponses = [];
+                // Add an empty guide message that we'll stream text into
+                setMessages(prev => [...prev, { role: 'guide', text: '' }]);
+                setIsLoading(false); // Hide "Consulting..." — streaming text IS the indicator
 
-                    for (const call of functionCalls) {
-                        let callResult: object;
+                let streamedText = '';
+                let hadStreamError = false;
 
-                        if (call.name === 'update_plan') {
-                            const updatedPlan = call.args as GeneratedPlan;
-                            if (onUpdatePlan) {
-                                onUpdatePlan(updatedPlan);
-                                console.log("Plan updated via Guide:", updatedPlan);
+                try {
+                    for await (const chunk of streamResult.stream) {
+                        try {
+                            const chunkText = chunk.text();
+                            if (chunkText) {
+                                streamedText += chunkText;
+                                const currentText = streamedText;
+                                setMessages(prev => {
+                                    const updated = [...prev];
+                                    updated[updated.length - 1] = { role: 'guide', text: currentText };
+                                    return updated;
+                                });
                             }
-                            callResult = { success: true };
-                        } else if (call.name === 'search_resources') {
-                            const { milestone_name } = call.args as { milestone_name: string };
-                            const resources = await geminiService.getGroundedResources(
-                                goal || plan?.title || '', milestone_name
-                            );
-                            callResult = { resources };
-                        } else if (call.name === 'regenerate_vision_image') {
-                            const { image_description } = call.args as { image_description: string };
-                            if (onRegenerateImage) onRegenerateImage(image_description);
-                            callResult = { success: true, message: "Image regeneration started" };
-                        } else {
-                            callResult = { error: `Unknown function: ${call.name}` };
+                        } catch {
+                            // chunk.text() throws if chunk contains function calls, not text
+                            break;
                         }
-
-                        functionResponses.push({
-                            functionResponse: { name: call.name, response: callResult }
-                        });
                     }
-
-                    // Send results back to Gemini for a natural language follow-up
-                    const followUp = await chatSession.sendMessage(functionResponses);
-                    response = followUp.response;
+                } catch {
+                    hadStreamError = true;
                 }
 
-                const textResponse = response.text();
-                setMessages((prev) => [...prev, { role: 'guide', text: textResponse }]);
-                speak(textResponse);
+                // Get the aggregated response for function call handling
+                const aggregatedResponse = await streamResult.response;
+                let response = aggregatedResponse;
+
+                // Function call loop — handle one or more function calls
+                if (response.functionCalls()?.length) {
+                    // Remove the empty streamed message if no text was streamed
+                    if (!streamedText) {
+                        setMessages(prev => prev.slice(0, -1));
+                    }
+                    setIsLoading(true);
+
+                    while (response.functionCalls()?.length) {
+                        const functionCalls = response.functionCalls()!;
+                        const functionResponses = [];
+
+                        for (const call of functionCalls) {
+                            let callResult: object;
+
+                            if (call.name === 'update_plan') {
+                                const updatedPlan = call.args as GeneratedPlan;
+                                if (onUpdatePlan) {
+                                    onUpdatePlan(updatedPlan);
+                                    console.log("Plan updated via Guide:", updatedPlan);
+                                }
+                                callResult = { success: true };
+                            } else if (call.name === 'search_resources') {
+                                const { milestone_name } = call.args as { milestone_name: string };
+                                const resources = await geminiService.getGroundedResources(
+                                    goal || plan?.title || '', milestone_name
+                                );
+                                callResult = { resources };
+                            } else if (call.name === 'regenerate_vision_image') {
+                                const { image_description } = call.args as { image_description: string };
+                                if (onRegenerateImage) onRegenerateImage(image_description);
+                                callResult = { success: true, message: "Image regeneration started" };
+                            } else {
+                                callResult = { error: `Unknown function: ${call.name}` };
+                            }
+
+                            functionResponses.push({
+                                functionResponse: { name: call.name, response: callResult }
+                            });
+                        }
+
+                        // Send function results back to Gemini for a natural language follow-up
+                        const followUp = await chatSession.sendMessage(functionResponses);
+                        response = followUp.response;
+                    }
+
+                    // Add the final text response after function calls resolved
+                    const textResponse = response.text();
+                    setMessages(prev => [...prev, { role: 'guide', text: textResponse }]);
+                    speak(textResponse);
+                    streamedText = textResponse;
+                } else if (hadStreamError || !streamedText) {
+                    // Fallback: streaming failed but we have the aggregated response
+                    const textResponse = response.text();
+                    setMessages(prev => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { role: 'guide', text: textResponse };
+                        return updated;
+                    });
+                    speak(textResponse);
+                    streamedText = textResponse;
+                } else {
+                    // Streaming completed successfully — text is already displayed
+                    speak(streamedText);
+                }
 
                 // Persist Guide Message
-                if (user) {
+                if (user && streamedText) {
                     firestoreService.saveChatMessage(user.uid, planId, {
                         senderId: 'ai_guide',
-                        text: textResponse,
+                        text: streamedText,
                         createdAt: new Date(),
                         role: 'model'
                     }).catch(console.error);

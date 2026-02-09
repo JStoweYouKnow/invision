@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firestoreService } from './firestore';
 
+// Mock the local firebase module to prevent initializeApp from running
+vi.mock('./firebase', () => ({
+    db: {},
+    switchToBackupFirebase: vi.fn(),
+    hasBackupFirebaseConfig: false,
+    isUsingBackupFirebase: vi.fn(() => false),
+}));
+
 // Mock Firebase/Firestore
 vi.mock('firebase/firestore', () => ({
     getFirestore: vi.fn(),
@@ -14,6 +22,9 @@ vi.mock('firebase/firestore', () => ({
     query: vi.fn(),
     where: vi.fn(),
     orderBy: vi.fn(),
+    limit: vi.fn(),
+    setDoc: vi.fn(),
+    onSnapshot: vi.fn(),
     Timestamp: {
         now: vi.fn(() => ({ toDate: () => new Date() })),
         fromDate: vi.fn((date: Date) => ({ toDate: () => date })),
@@ -23,6 +34,14 @@ vi.mock('firebase/firestore', () => ({
 vi.mock('firebase/app', () => ({
     initializeApp: vi.fn(),
     getApps: vi.fn(() => []),
+}));
+
+vi.mock('firebase/auth', () => ({
+    getAuth: vi.fn(),
+    GoogleAuthProvider: vi.fn(),
+    signInWithPopup: vi.fn(),
+    signOut: vi.fn(),
+    onAuthStateChanged: vi.fn(),
 }));
 
 describe('firestoreService', () => {
@@ -37,9 +56,9 @@ describe('firestoreService', () => {
     });
 
     describe('Mock Data Operations', () => {
-        it('should return mock goals for mock user', async () => {
-            // The mock user has a UID that starts with 'mock-'
-            const goals = await firestoreService.getUserGoals('mock-user-123');
+        it('should return mock goals for demo user', async () => {
+            // The mock user UID is 'demo-user' (defined in mockData.ts)
+            const goals = await firestoreService.getUserGoals('demo-user');
             expect(Array.isArray(goals)).toBe(true);
         });
 
@@ -52,8 +71,8 @@ describe('firestoreService', () => {
             }
         });
 
-        it('should return null for non-existent goal ID', async () => {
-            const goal = await firestoreService.getGoalById('non-existent-goal-id-12345');
+        it('should return null for non-existent mock goal ID', async () => {
+            const goal = await firestoreService.getGoalById('mock-goal-does-not-exist');
             expect(goal).toBeNull();
         });
     });
@@ -123,7 +142,7 @@ describe('firestoreService', () => {
             localStorage.setItem('invision_demo_store', JSON.stringify(mockData));
 
             // The service should pick this up on next operation
-            const goals = await firestoreService.getUserGoals('mock-user');
+            const goals = await firestoreService.getUserGoals('demo-user');
             expect(Array.isArray(goals)).toBe(true);
         });
     });

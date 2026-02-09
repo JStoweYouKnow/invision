@@ -1,6 +1,6 @@
 # Gemini Integration
 
-InVision is powered end-to-end by **Google Gemini 3**, which serves as the application's AI core across eight distinct capabilities:
+InVision is powered end-to-end by **Google Gemini 3**, which serves as the application's AI core across nine distinct capabilities:
 
 **1. Plan Generation (Gemini 3 Flash/Pro)** — Users describe a life goal in text, voice, or image. Gemini generates a complete multi-milestone plan using **Structured Outputs** with strict JSON schema validation, guaranteeing type-safe, deterministic results every time. The "Wormhole" mode inverts this — Gemini *invents* a tailored goal for the user.
 
@@ -17,6 +17,8 @@ InVision is powered end-to-end by **Google Gemini 3**, which serves as the appli
 **7. Conversational Plan Refinement (Gemini 3 Flash)** — A chat interface lets users iteratively modify their plans through natural conversation, with Gemini outputting updated structured plan JSON inline.
 
 **8. Journey Synthesis (Gemini 3 Flash — Thinking Mode)** — The crown jewel. Gemini ingests ALL of a user's goals, milestones, date-change histories, and journal entries, then uses **Thinking Mode** (`thinkingBudget: 2048`) for deep, multi-step reasoning to surface cross-goal behavioral patterns, hidden connections between goals, and a single highest-leverage next action. This is not summarization — it's genuine behavioral analysis that no simple prompt could produce.
+
+**9. Real-Time Streaming Responses (Gemini 3 Flash)** — The Vision Guide implements `sendMessageStream` to provide instantaneous feedback. Tokens are streamed directly to the UI as they are generated, creating a lifelike conversational experience while maintaining low perceived latency.
 
 ## Technical Rationale: Why Gemini 3?
 The decision to center InVision around the **Google Gemini 3** ecosystem was driven by three technical pillars:
