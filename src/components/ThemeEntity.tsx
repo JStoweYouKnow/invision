@@ -182,16 +182,23 @@ const NeuralEntity: React.FC<{ size: number; type: NeuralType; index: number; co
     );
 };
 
-// Forest Entity - Different tree types
+// Forest Entity - Floating Islands with different tree types
 const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; colors: { primary: string; secondary: string; accent: string; glow: string } }> = ({
     size, type, index, colors
 }) => {
-    const renderShape = () => {
+    // Generate random seed for organic variation based on index
+    const randomSeed = (index * 1337) % 100;
+    const islandShapeVariance = [
+        "M 10 34 Q 24 38 38 34 Q 36 42 24 46 Q 12 42 10 34", // Standard
+        "M 12 34 Q 24 36 36 34 Q 38 40 30 46 Q 18 48 10 40 Q 8 36 12 34", // lopsided
+        "M 8 34 Q 24 40 40 34 Q 36 44 24 48 Q 12 44 8 34" // Deep
+    ][index % 3];
+
+    const renderTree = () => {
         switch (type) {
             case 'oak':
-                // Classic round oak tree
                 return (
-                    <svg viewBox="0 0 48 48" className="w-full h-full">
+                    <g transform="translate(0, -4)">
                         <defs>
                             <radialGradient id={`oakGrad-${index}`} cx="30%" cy="30%">
                                 <stop offset="0%" stopColor={colors.primary} />
@@ -199,164 +206,103 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                             </radialGradient>
                         </defs>
                         {/* Trunk */}
-                        <rect x="20" y="32" width="8" height="14" fill={colors.secondary} rx="2" />
-                        {/* Round canopy */}
-                        <motion.circle
-                            cx="24" cy="20" r="16"
-                            fill={`url(#oakGrad-${index})`}
-                            animate={{ scale: [1, 1.03, 1] }}
-                            transition={{ duration: 4, repeat: Infinity }}
-                        />
-                        {/* Canopy highlights */}
-                        <circle cx="18" cy="16" r="6" fill={colors.primary} opacity="0.5" />
-                        <circle cx="28" cy="22" r="5" fill={colors.secondary} opacity="0.3" />
-                        {/* Falling leaves */}
-                        {[0, 1].map(i => (
-                            <motion.circle
-                                key={i}
-                                cx={16 + i * 16} cy={28}
-                                r="2"
-                                fill={colors.accent}
-                                animate={{ y: [0, 18], x: [(i - 0.5) * 8, 0], opacity: [1, 0] }}
-                                transition={{ duration: 3, delay: i * 1.2, repeat: Infinity }}
-                            />
-                        ))}
-                    </svg>
+                        <path d="M 22 36 L 22 28 Q 20 24 18 20 M 26 36 L 26 28 Q 28 24 30 20" stroke={colors.secondary} strokeWidth="2" fill="none" />
+                        <rect x="22" y="28" width="4" height="10" fill={colors.secondary} />
+
+                        {/* Canopy Layers */}
+                        <motion.circle cx="24" cy="18" r="14" fill={`url(#oakGrad-${index})`}
+                            animate={{ scale: [1, 1.02, 1] }} transition={{ duration: 4, repeat: Infinity, delay: index * 0.2 }} />
+                        <circle cx="16" cy="14" r="5" fill={colors.primary} opacity="0.6" />
+                        <circle cx="30" cy="16" r="6" fill={colors.secondary} opacity="0.4" />
+                        <circle cx="24" cy="24" r="8" fill={colors.secondary} opacity="0.3" />
+                    </g>
                 );
 
             case 'pine':
-                // Triangular pine/evergreen tree
                 return (
-                    <svg viewBox="0 0 48 48" className="w-full h-full">
+                    <g transform="translate(0, -2)">
                         <defs>
                             <linearGradient id={`pineGrad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
                                 <stop offset="0%" stopColor={colors.primary} />
                                 <stop offset="100%" stopColor={colors.secondary} />
                             </linearGradient>
                         </defs>
-                        {/* Trunk */}
-                        <rect x="21" y="38" width="6" height="8" fill={colors.secondary} rx="1" />
-                        {/* Stacked triangles for pine shape */}
-                        <motion.polygon
-                            points="24,4 38,22 10,22"
-                            fill={`url(#pineGrad-${index})`}
-                            animate={{ scale: [1, 1.02, 1] }}
-                            transition={{ duration: 3, repeat: Infinity }}
-                        />
-                        <polygon points="24,14 40,32 8,32" fill={colors.primary} opacity="0.8" />
-                        <polygon points="24,24 42,40 6,40" fill={colors.secondary} opacity="0.6" />
-                        {/* Snow/highlight on tips */}
-                        <circle cx="24" cy="6" r="2" fill="white" opacity="0.3" />
-                        {/* Sparkle particles */}
-                        {[0, 1, 2].map(i => (
-                            <motion.circle
-                                key={i}
-                                cx={14 + i * 10} cy={18 + i * 6}
-                                r="1.5"
-                                fill={colors.accent}
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 2, delay: i * 0.5, repeat: Infinity }}
-                            />
-                        ))}
-                    </svg>
+                        <rect x="22" y="32" width="4" height="6" fill={colors.secondary} />
+                        {/* Layers */}
+                        <motion.path d="M 24 4 L 38 24 L 10 24 Z" fill={`url(#pineGrad-${index})`}
+                            animate={{ d: ["M 24 4 L 38 24 L 10 24 Z", "M 24 3 L 39 25 L 9 25 Z", "M 24 4 L 38 24 L 10 24 Z"] }}
+                            transition={{ duration: 3, repeat: Infinity, delay: index * 0.5 }} />
+                        <path d="M 24 12 L 36 32 L 12 32 Z" fill={colors.primary} opacity="0.8" />
+                        <path d="M 24 20 L 34 36 L 14 36 Z" fill={colors.secondary} opacity="0.6" />
+                    </g>
                 );
 
             case 'willow':
-                // Weeping willow with drooping branches
                 return (
-                    <svg viewBox="0 0 48 48" className="w-full h-full">
-                        {/* Trunk */}
-                        <path d="M 22 46 Q 24 36 26 46" fill={colors.secondary} />
-                        <rect x="22" y="24" width="4" height="22" fill={colors.secondary} rx="1" />
-                        {/* Main canopy dome */}
-                        <ellipse cx="24" cy="18" rx="14" ry="12" fill={colors.primary} opacity="0.4" />
-                        {/* Drooping branches */}
-                        {[-3, -1, 1, 3].map((offset, i) => (
-                            <motion.path
-                                key={i}
-                                d={`M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 42`}
-                                stroke={colors.primary}
-                                strokeWidth="3"
-                                fill="none"
-                                strokeLinecap="round"
-                                animate={{ x: [0, offset * 0.5, 0] }}
-                                transition={{ duration: 3 + i * 0.3, repeat: Infinity, ease: "easeInOut" }}
-                            />
-                        ))}
-                        {/* Additional drooping strands */}
-                        {[-2, 0, 2].map((offset, i) => (
-                            <motion.path
-                                key={`strand-${i}`}
-                                d={`M ${24 + offset * 4} 16 Q ${24 + offset * 5} 30 ${24 + offset * 6} 38`}
-                                stroke={colors.secondary}
-                                strokeWidth="2"
-                                fill="none"
-                                animate={{ x: [0, offset * 0.3, 0] }}
-                                transition={{ duration: 2.5, delay: i * 0.2, repeat: Infinity }}
-                            />
-                        ))}
-                    </svg>
+                    <g transform="translate(0, -2)">
+                        <path d="M 22 38 Q 20 30 18 26 M 26 38 Q 28 30 30 26" stroke={colors.secondary} strokeWidth="2" fill="none" />
+                        <rect x="22" y="24" width="4" height="14" fill={colors.secondary} />
+                        <change>
+                            <ellipse cx="24" cy="18" rx="12" ry="10" fill={colors.primary} opacity="0.4" />
+                            {[-3, -1, 1, 3].map((offset, i) => (
+                                <motion.path
+                                    key={i}
+                                    d={`M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`}
+                                    stroke={colors.primary}
+                                    strokeWidth="1.5"
+                                    fill="none"
+                                    animate={{
+                                        d: [
+                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`,
+                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6 + 2} 28 ${24 + offset * 8 + 1} 44`,
+                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`
+                                        ]
+                                    }}
+                                    transition={{ duration: 3 + i, repeat: Infinity, ease: "easeInOut" }}
+                                />
+                            ))}
+                        </change>
+                    </g>
                 );
 
             case 'bonsai':
-                // Stylized bonsai tree
                 return (
-                    <svg viewBox="0 0 48 48" className="w-full h-full">
-                        {/* Pot */}
-                        <rect x="14" y="40" width="20" height="6" fill={colors.secondary} rx="2" />
-                        <rect x="16" y="38" width="16" height="4" fill={colors.accent} opacity="0.6" rx="1" />
-                        {/* Curved trunk */}
+                    <g transform="translate(0, -4)">
+                        {/* Twisted Trunk */}
                         <motion.path
-                            d="M 24 38 Q 20 32 22 26 Q 18 22 20 16"
+                            d="M 24 38 C 20 32, 28 28, 22 22 C 18 18, 26 14, 24 10"
                             stroke={colors.secondary}
-                            strokeWidth="4"
+                            strokeWidth="3"
                             fill="none"
                             strokeLinecap="round"
-                            animate={{ pathLength: [0.95, 1, 0.95] }}
-                            transition={{ duration: 4, repeat: Infinity }}
                         />
-                        {/* Cloud-like foliage clusters */}
-                        <motion.ellipse
-                            cx="18" cy="14" rx="8" ry="6"
-                            fill={colors.primary}
-                            animate={{ scale: [1, 1.05, 1] }}
-                            transition={{ duration: 3, repeat: Infinity }}
-                        />
-                        <ellipse cx="28" cy="18" rx="7" ry="5" fill={colors.primary} opacity="0.8" />
-                        <ellipse cx="22" cy="8" rx="6" ry="4" fill={colors.secondary} opacity="0.6" />
-                        {/* Zen particles */}
-                        {[0, 1].map(i => (
-                            <motion.circle
+                        {/* Foliage Pads */}
+                        {[
+                            { cx: 18, cy: 18, rx: 6, ry: 4 }, { cx: 28, cy: 14, rx: 5, ry: 3 }, { cx: 24, cy: 6, rx: 4, ry: 3 }
+                        ].map((pad, i) => (
+                            <motion.ellipse
                                 key={i}
-                                cx={16 + i * 14} cy={10 + i * 6}
-                                r="1.5"
-                                fill={colors.accent}
-                                animate={{ opacity: [0.2, 0.8, 0.2], scale: [0.8, 1.2, 0.8] }}
-                                transition={{ duration: 2.5, delay: i * 0.8, repeat: Infinity }}
+                                cx={pad.cx} cy={pad.cy} rx={pad.rx} ry={pad.ry}
+                                fill={colors.primary}
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ duration: 4, delay: i, repeat: Infinity }}
                             />
                         ))}
-                    </svg>
+                    </g>
                 );
+
             case 'leaf':
-                // Simple leaf shape for Yggdrasil visualization
+            default:
                 return (
-                    <svg viewBox="0 0 48 48" className="w-full h-full">
-                        <defs>
-                            <linearGradient id={`leafGrad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor={colors.primary} />
-                                <stop offset="100%" stopColor={colors.accent} />
-                            </linearGradient>
-                        </defs>
+                    <g transform="translate(0, -6)">
                         <motion.path
-                            d="M 24 8 Q 40 24 24 40 Q 8 24 24 8 Z"
-                            fill={`url(#leafGrad-${index})`}
-                            stroke={colors.glow}
-                            strokeWidth="1"
-                            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-                            transition={{ duration: 4, delay: index * 0.2, repeat: Infinity }}
+                            d="M 24 12 Q 36 24 24 36 Q 12 24 24 12 Z"
+                            fill={colors.primary}
+                            animate={{ rotate: [0, 5, -5, 0] }}
+                            transition={{ duration: 5, repeat: Infinity }}
                         />
-                        <path d="M 24 8 Q 24 24 24 32" stroke={colors.secondary} strokeWidth="1" opacity="0.6" />
-                    </svg>
+                        <path d="M 24 36 L 24 40" stroke={colors.secondary} strokeWidth="1" />
+                    </g>
                 );
         }
     };
@@ -366,15 +312,63 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
             className="relative flex items-center justify-center"
             style={{ width: size, height: size }}
         >
-            {/* Glow effect */}
-            <div
-                className="absolute inset-0 rounded-full blur-md pointer-events-none"
-                style={{
-                    background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)`,
-                    transform: 'scale(1.3)',
-                }}
-            />
-            {renderShape()}
+            {/* Island Base */}
+            <svg viewBox="0 0 48 48" className="w-full h-full overflow-visible">
+                <g transform="translate(0, 2)">
+                    {/* Floating Animation for whole island */}
+                    <motion.g
+                        animate={{ y: [0, -2, 0] }}
+                        transition={{ duration: 4 + (index % 3), repeat: Infinity, ease: "easeInOut" }}
+                    >
+                        {/* Roots hanging down */}
+                        {[0, 1, 2, 3].map(i => (
+                            <motion.path
+                                key={`root-${i}`}
+                                d={`M ${18 + i * 4} 40 Q ${16 + i * 5} 44 ${18 + i * 4} 48`}
+                                stroke={colors.secondary}
+                                strokeWidth="1"
+                                opacity="0.7"
+                                fill="none"
+                                animate={{
+                                    d: [
+                                        `M ${18 + i * 4} 40 Q ${16 + i * 5} 44 ${18 + i * 4} 48`,
+                                        `M ${18 + i * 4} 40 Q ${20 + i * 5} 45 ${14 + i * 4} 47`,
+                                        `M ${18 + i * 4} 40 Q ${16 + i * 5} 44 ${18 + i * 4} 48`
+                                    ]
+                                }}
+                                transition={{ duration: 3 + i, repeat: Infinity }}
+                            />
+                        ))}
+
+                        {/* Earthy Base */}
+                        <path d={islandShapeVariance} fill="#5d4037" /> {/* Darker earth tone */}
+                        <path d={islandShapeVariance} fill={colors.secondary} opacity="0.3" transform="scale(0.9) translate(2.4, 2)" />
+
+                        {/* Grassy Top */}
+                        <path d="M 10 34 Q 24 30 38 34 L 38 35 Q 24 40 10 35 Z" fill={colors.secondary} />
+
+                        {/* The Tree itself */}
+                        {renderTree()}
+                    </motion.g>
+                </g>
+
+                {/* Fireflies / Magic Particles */}
+                {[0, 1, 2].map(i => (
+                    <motion.circle
+                        key={`particle-${i}`}
+                        cx={10 + i * 14}
+                        cy={20}
+                        r={1}
+                        fill={colors.accent}
+                        animate={{
+                            y: [0, -20, 0],
+                            x: [0, (i % 2 === 0 ? 5 : -5), 0],
+                            opacity: [0, 1, 0]
+                        }}
+                        transition={{ duration: 3 + i, repeat: Infinity, delay: i * 0.7 }}
+                    />
+                ))}
+            </svg>
         </div>
     );
 };
