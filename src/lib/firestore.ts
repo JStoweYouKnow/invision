@@ -19,6 +19,8 @@ export interface SavedGoal {
     authorPhoto?: string;
     celestialType?: CelestialType;
     category?: GoalCategory;
+    forks?: number;
+    forkedFrom?: string; // ID of the original goal
 }
 
 export type GoalCategory = 'Career' | 'Health' | 'Travel' | 'Creative' | 'Lifestyle' | 'Finance' | 'Education' | 'Other';
@@ -285,6 +287,68 @@ export const firestoreService = {
                 return offlineId;
             }
             console.error("Error saving goal:", error);
+            throw error;
+        }
+    },
+
+    forkGoal: async (originalGoalId: string, userId: string): Promise<string> => {
+        // 1. Fetch original goal
+        const originalGoal = await firestoreService.getGoalById(originalGoalId);
+        if (!originalGoal) throw new Error("Goal not found");
+
+        // 2. Clone data
+        const newGoalData = {
+            userId,
+            title: originalGoal.title,
+            description: originalGoal.description,
+            plan: originalGoal.plan,
+            visionImage: originalGoal.visionImage, // Reuse image
+            createdAt: new Date(),
+            isPublic: false, // Private by default
+            authorName: 'Me', // Will be overwritten by UI or context usually, but safe default
+            celestialType: originalGoal.celestialType,
+            category: originalGoal.category,
+            forkedFrom: originalGoalId
+        };
+
+        if (userId === MOCK_USER.uid) {
+            const mockId = `mock-fork-${Date.now()}`;
+            // Add to mock store if needed, or just return success
+            // For the demo session, we'll just return success as if it worked.
+            // Ideally we'd add to MOCK_GOALS but they are const.
+            // If we really want it to show up in "My Visions", we need to add to offline store?
+            // Or better, just treat "My Visions" as MOCK_GOALS + whatever.
+            // Let's add to local storage "offline store" even for mock user to simulate "saving"
+            const offlineGoal = { ...newGoalData, id: mockId, authorName: MOCK_USER.displayName, authorPhoto: MOCK_USER.photoURL };
+            // We need to access offlineStore - it is in scope? Yes, file scope.
+            offlineStore.goals.push(offlineGoal as SavedGoal);
+            saveOfflineStore(offlineStore);
+            return mockId;
+        }
+
+        try {
+            // Increment fork count on original (Optimistic-ish)
+            const originalRef = doc(db, 'goals', originalGoalId);
+            updateDoc(originalRef, { forks: (originalGoal.forks || 0) + 1 }).catch(e => console.warn('Failed to inc forks', e));
+
+            // Create new
+            const newDocRef = await addDoc(collection(db, 'goals'), {
+                ...newGoalData,
+                createdAt: Timestamp.now(),
+                forks: 0
+            });
+            clearQuotaExceeded();
+            return newDocRef.id;
+        } catch (error) {
+            if (isQuotaError(error)) {
+                setQuotaExceeded();
+                const offlineId = `offline-fork-${Date.now()}`;
+                const offlineGoal = { ...newGoalData, id: offlineId };
+                offlineStore.goals.push(offlineGoal as SavedGoal);
+                saveOfflineStore(offlineStore);
+                return offlineId;
+            }
+            console.error("Forking failed", error);
             throw error;
         }
     },

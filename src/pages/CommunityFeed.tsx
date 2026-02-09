@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, Sparkles, UserPlus, Users, X, Check, ChevronDown, Radio } from 'lucide-react';
+import { User as UserIcon, Sparkles, UserPlus, Users, X, Check, ChevronDown, Radio, GitFork, Loader2 } from 'lucide-react';
 import { firestoreService, type SavedGoal, type GoalCategory } from '@/lib/firestore';
 import { MOCK_GOALS, MOCK_ADDITIONAL_GOALS } from '@/lib/mockData';
 import { ThemeEntity } from '@/components/ThemeEntity';
@@ -65,6 +65,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
     const [showFriendsOnly, setShowFriendsOnly] = useState(false);
     const [friendIds, setFriendIds] = useState<string[]>([]);
     const [newSignalDetected, setNewSignalDetected] = useState(false);
+    const [forkingGoalId, setForkingGoalId] = useState<string | null>(null);
+    const [forkSuccessId, setForkSuccessId] = useState<string | null>(null);
     const prevGoalCountRef = useRef(0);
 
     const navigate = useNavigate();
@@ -75,6 +77,30 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
     const { colors, particles } = currentTheme;
     const themeKey = currentTheme.id === 'custom' ? 'custom' : currentTheme.id;
     const text = themeText[themeKey as keyof typeof themeText] || themeText.space;
+
+    const handleForkGoal = async (goal: SavedGoal) => {
+        if (!user) {
+            alert('Please log in to fork visions');
+            return;
+        }
+        if (forkingGoalId) return; // Prevent double click
+
+        try {
+            setForkingGoalId(goal.id || '');
+            await firestoreService.forkGoal(goal.id!, user.uid);
+
+            // Show success logic
+            setForkSuccessId(goal.id || '');
+            setForkingGoalId(null);
+
+            // Reset success message after 3s
+            setTimeout(() => setForkSuccessId(null), 3000);
+        } catch (error) {
+            console.error("Fork failed", error);
+            setForkingGoalId(null);
+            alert("Failed to fork vision. Please try again.");
+        }
+    };
 
     // Load goals with Real-time Subscription
     useEffect(() => {
@@ -486,6 +512,33 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                                         className="flex-1 py-1.5 bg-brand-purple/20 hover:bg-brand-purple/40 border border-brand-purple/50 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
                                                     >
                                                         Message
+                                                    </button>
+
+                                                    {/* Fork Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleForkGoal(goal);
+                                                        }}
+                                                        disabled={forkingGoalId === goal.id || forkSuccessId === goal.id}
+                                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider transition-colors flex items-center justify-center gap-1 border border-white/20
+                                                            ${forkSuccessId === goal.id
+                                                                ? 'bg-green-500/20 border-green-500/50 text-green-300'
+                                                                : 'bg-white/10 hover:bg-white/20'}`}
+                                                    >
+                                                        {forkingGoalId === goal.id ? (
+                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                        ) : forkSuccessId === goal.id ? (
+                                                            <>
+                                                                <Check className="w-3 h-3" />
+                                                                Forked
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <GitFork className="w-3 h-3" />
+                                                                Fork
+                                                            </>
+                                                        )}
                                                     </button>
                                                 </div>
                                             </motion.div>
