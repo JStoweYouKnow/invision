@@ -276,19 +276,20 @@ export const MessagingDrawer: React.FC = () => {
                                                                 <span className="font-semibold text-slate-900 truncate">
                                                                     {otherUser?.displayName || `User ${getOtherUserId(conv).slice(0, 6)}...`}
                                                                 </span>
-                                                                <span className="text-xs text-slate-400 ml-2 shrink-0">
-                                                                    {conv.updatedAt?.toLocaleDateString()}
-                                                                </span>
+                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                    <span className="text-xs text-slate-400">
+                                                                        {conv.updatedAt?.toLocaleDateString()}
+                                                                    </span>
+                                                                    {unreadCount > 0 && (
+                                                                        <div className="bg-brand-purple text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                                                            {unreadCount > 9 ? '9+' : unreadCount}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <p className="text-sm text-slate-500 truncate group-hover:text-slate-600">
-                                                                {conv.lastMessage || 'Start a conversation'}
                                                             </p>
                                                         </div>
-                                                        {unreadCount > 0 && (
-                                                            <div className="absolute top-2 right-2 bg-brand-purple text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                                                                {unreadCount > 9 ? '9+' : unreadCount}
-                                                            </div>
-                                                        )}
                                                     </button>
                                                 );
                                             })
