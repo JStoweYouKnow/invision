@@ -37,8 +37,6 @@ const TRUSTED_DOMAINS = [
 
 // Whitelist of trusted image sources
 const TRUSTED_IMAGE_SOURCES = [
-    'pollinations.ai',
-    'image.pollinations.ai',
     'unsplash.com',
     'images.unsplash.com',
     'firebasestorage.googleapis.com',

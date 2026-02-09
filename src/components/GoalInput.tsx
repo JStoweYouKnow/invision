@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MoonContainer } from './themes/MoonContainer';
@@ -270,6 +270,39 @@ export const GoalInput: React.FC<GoalInputProps> = ({ onSubmit, onWormhole, isLo
                         </div>
                     </div>
                 </ContainerComponent>
+
+                {/* Inline Loading Indicator - Positioned outside container to avoid clipping */}
+                <AnimatePresence>
+                    {isLoading && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 20 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute -bottom-16 left-0 right-0 flex justify-center z-50 pointer-events-none"
+                        >
+                            <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-slate-900/90 backdrop-blur-xl border border-white/20 shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+                                <div className="flex gap-1.5">
+                                    {[0, 1, 2].map(i => (
+                                        <motion.div
+                                            key={i}
+                                            className="w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: currentTheme.colors.accent }}
+                                            animate={{
+                                                opacity: [0.3, 1, 0.3],
+                                                scale: [0.8, 1.2, 0.8],
+                                                y: [0, -2, 0]
+                                            }}
+                                            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-sm font-bold uppercase tracking-widest text-white shadow-sm">
+                                    Constructing Vision...
+                                </span>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.form>
         </div>
     );

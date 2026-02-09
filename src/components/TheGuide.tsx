@@ -28,6 +28,7 @@ interface TheGuideProps {
     context?: GuideContext;
     personality?: GuidePersonality;
     onUpdatePlan?: (newPlan: GeneratedPlan) => void;
+    onRegenerateImage?: (description: string) => void;
 }
 
 export const TheGuide: React.FC<TheGuideProps> = ({
@@ -36,6 +37,7 @@ export const TheGuide: React.FC<TheGuideProps> = ({
     context,
     personality = 'encouraging',
     onUpdatePlan,
+    onRegenerateImage,
 }) => {
     const { user } = useAuth();
     const { currentTheme } = useTheme();
@@ -113,43 +115,56 @@ export const TheGuide: React.FC<TheGuideProps> = ({
         try {
             if (chatSession) {
                 const result = await chatSession.sendMessage(userMsg);
-                let response = result.response.text();
+                let response = result.response;
 
-                // Check for Plan Update Protocol
-                if (response.includes('::PLAN_JSON_START::')) {
-                    try {
-                        const startMarker = '::PLAN_JSON_START::';
-                        const endMarker = '::PLAN_JSON_END::';
-                        const startIndex = response.indexOf(startMarker);
-                        const endIndex = response.indexOf(endMarker);
+                // Function call loop — handle one or more function calls
+                while (response.functionCalls()?.length) {
+                    const functionCalls = response.functionCalls()!;
+                    const functionResponses = [];
 
-                        if (endIndex > startIndex) {
-                            const jsonStr = response.substring(startIndex + startMarker.length, endIndex).trim();
-                            const newPlan = JSON.parse(jsonStr);
+                    for (const call of functionCalls) {
+                        let callResult: object;
 
-                            // Call the update callback
+                        if (call.name === 'update_plan') {
+                            const updatedPlan = call.args as GeneratedPlan;
                             if (onUpdatePlan) {
-                                onUpdatePlan(newPlan);
-                                console.log("Plan updated via Guide:", newPlan);
+                                onUpdatePlan(updatedPlan);
+                                console.log("Plan updated via Guide:", updatedPlan);
                             }
-
-                            // Clean the response for display
-                            // We remove the JSON block but keep the text before (and after if any)
-                            response = (response.substring(0, startIndex) + response.substring(endIndex + endMarker.length)).trim();
+                            callResult = { success: true };
+                        } else if (call.name === 'search_resources') {
+                            const { milestone_name } = call.args as { milestone_name: string };
+                            const resources = await geminiService.getGroundedResources(
+                                goal || plan?.title || '', milestone_name
+                            );
+                            callResult = { resources };
+                        } else if (call.name === 'regenerate_vision_image') {
+                            const { image_description } = call.args as { image_description: string };
+                            if (onRegenerateImage) onRegenerateImage(image_description);
+                            callResult = { success: true, message: "Image regeneration started" };
+                        } else {
+                            callResult = { error: `Unknown function: ${call.name}` };
                         }
-                    } catch (err) {
-                        console.error("Failed to parse plan update from Guide:", err);
+
+                        functionResponses.push({
+                            functionResponse: { name: call.name, response: callResult }
+                        });
                     }
+
+                    // Send results back to Gemini for a natural language follow-up
+                    const followUp = await chatSession.sendMessage(functionResponses);
+                    response = followUp.response;
                 }
 
-                setMessages((prev) => [...prev, { role: 'guide', text: response }]);
-                speak(response);
+                const textResponse = response.text();
+                setMessages((prev) => [...prev, { role: 'guide', text: textResponse }]);
+                speak(textResponse);
 
                 // Persist Guide Message
                 if (user) {
                     firestoreService.saveChatMessage(user.uid, planId, {
                         senderId: 'ai_guide',
-                        text: response,
+                        text: textResponse,
                         createdAt: new Date(),
                         role: 'model'
                     }).catch(console.error);

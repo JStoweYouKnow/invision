@@ -234,9 +234,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ demoMode = false }) => {
                                             </div>
                                         ) : (
                                             <img
-                                                src={(!goal.visionImage || goal.visionImage.includes("images.unsplash.com"))
-                                                    ? `https://image.pollinations.ai/prompt/${encodeURIComponent(`cinematic shot of ${goal.title}, futuristic, inspirational, highly detailed, 8k`)}?width=800&height=1000&nologo=true`
-                                                    : goal.visionImage}
+                                                src={goal.visionImage || "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop"}
                                                 alt={goal.title}
                                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 md:group-hover:blur-[2px]"
                                                 loading="lazy"

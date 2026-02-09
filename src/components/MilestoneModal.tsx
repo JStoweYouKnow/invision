@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink, BookOpen, Video, Wrench, CheckCircle2, Check, Trophy, Sparkles, PenLine, Calendar, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ExternalLink, BookOpen, Video, Wrench, CheckCircle2, Check, Trophy, Sparkles, PenLine, Calendar, History, ChevronDown, ChevronUp, Camera, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
-import type { GeneratedPlan } from '@/lib/gemini';
+import { geminiService, type GeneratedPlan } from '@/lib/gemini';
 import { JournalEditor } from './JournalEditor';
 import { JournalTimeline, JournalBadge } from './JournalTimeline';
 import { firestoreService, type JournalEntry } from '@/lib/firestore';
@@ -62,6 +62,16 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
     const [isEditingSteps, setIsEditingSteps] = useState(false);
     const [editableSteps, setEditableSteps] = useState<StepType[]>([]);
     const [pendingStepChanges, setPendingStepChanges] = useState<StepChange[]>([]);
+
+    // Progress check-in state
+    const [progressPhoto, setProgressPhoto] = useState<string | null>(null);
+    const [progressAnalysis, setProgressAnalysis] = useState<string | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const progressFileRef = useRef<HTMLInputElement>(null);
+
+    // Grounded resources state
+    const [groundedResources, setGroundedResources] = useState<{ title: string; url: string; type?: 'article' | 'video' | 'tool' }[]>([]);
+    const [isLoadingResources, setIsLoadingResources] = useState(false);
 
 
     // Fetch journal entries when modal opens
@@ -163,6 +173,49 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
         setEditableSteps([]);
         setPendingStepChanges([]);
 
+    };
+
+    // Handle progress photo upload and analysis
+    const handleProgressPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !milestone) return;
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const dataUri = reader.result as string;
+            setProgressPhoto(dataUri);
+            setIsAnalyzing(true);
+            setProgressAnalysis(null);
+
+            try {
+                const analysis = await geminiService.analyzeProgressPhoto(
+                    goalTitle || '',
+                    milestone.milestone,
+                    dataUri,
+                    milestone.description
+                );
+                setProgressAnalysis(analysis);
+            } catch {
+                setProgressAnalysis("Great job documenting your progress! Visual check-ins help you see how far you've come.");
+            } finally {
+                setIsAnalyzing(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Fetch grounded resources via Google Search
+    const fetchGroundedResources = async () => {
+        if (!milestone || !goalTitle) return;
+        setIsLoadingResources(true);
+        try {
+            const resources = await geminiService.getGroundedResources(goalTitle, milestone.milestone);
+            setGroundedResources(resources);
+        } catch {
+            setGroundedResources([]);
+        } finally {
+            setIsLoadingResources(false);
+        }
     };
 
     // Handle date change confirmation from reflection modal
@@ -607,6 +660,126 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
                                                         </a>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* Progress Check-in (Multimodal) */}
+                                        {!isReadOnly && (
+                                            <div className="space-y-4 pt-6 border-t border-slate-100">
+                                                <h4 className="font-bold text-lg flex items-center gap-2 text-slate-900">
+                                                    <div className="bg-teal-100 p-1.5 rounded-lg text-teal-600">
+                                                        <Camera className="w-5 h-5" />
+                                                    </div>
+                                                    Progress Check-in
+                                                </h4>
+
+                                                <input
+                                                    ref={progressFileRef}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={handleProgressPhoto}
+                                                />
+
+                                                {!progressPhoto ? (
+                                                    <button
+                                                        onClick={() => progressFileRef.current?.click()}
+                                                        className="w-full flex flex-col items-center gap-3 py-8 bg-teal-50/50 rounded-2xl border-2 border-dashed border-teal-200 hover:border-teal-400 hover:bg-teal-50 transition-all cursor-pointer group"
+                                                    >
+                                                        <div className="p-3 bg-white rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                                                            <Camera className="w-6 h-6 text-teal-500" />
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-medium text-slate-700">Upload a progress photo</p>
+                                                            <p className="text-xs text-slate-400 mt-0.5">AI will analyze your progress and give feedback</p>
+                                                        </div>
+                                                    </button>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        <div className="relative rounded-xl overflow-hidden">
+                                                            <img
+                                                                src={progressPhoto}
+                                                                alt="Progress check-in"
+                                                                className="w-full h-48 object-cover"
+                                                            />
+                                                            <button
+                                                                onClick={() => {
+                                                                    setProgressPhoto(null);
+                                                                    setProgressAnalysis(null);
+                                                                    if (progressFileRef.current) progressFileRef.current.value = '';
+                                                                }}
+                                                                className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+
+                                                        {isAnalyzing ? (
+                                                            <div className="flex items-center gap-3 p-4 bg-teal-50 rounded-xl border border-teal-100">
+                                                                <Loader2 className="w-5 h-5 text-teal-600 animate-spin flex-shrink-0" />
+                                                                <p className="text-sm text-teal-700 font-medium">Analyzing your progress...</p>
+                                                            </div>
+                                                        ) : progressAnalysis ? (
+                                                            <div className="flex gap-3 p-4 bg-teal-50 rounded-xl border border-teal-100">
+                                                                <div className="p-1.5 bg-white rounded-lg shadow-sm h-fit">
+                                                                    <Sparkles className="w-4 h-4 text-teal-600" />
+                                                                </div>
+                                                                <div>
+                                                                    <h5 className="text-xs font-bold text-teal-800 uppercase tracking-wide mb-1">AI Feedback</h5>
+                                                                    <p className="text-sm text-teal-900 leading-relaxed">{progressAnalysis}</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Grounded Resource Discovery */}
+                                        {!isReadOnly && (
+                                            <div className="pt-4">
+                                                {groundedResources.length === 0 ? (
+                                                    <button
+                                                        onClick={fetchGroundedResources}
+                                                        disabled={isLoadingResources}
+                                                        className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition-colors text-sm font-medium text-blue-700 disabled:opacity-50"
+                                                    >
+                                                        {isLoadingResources ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Search className="w-4 h-4" />
+                                                        )}
+                                                        {isLoadingResources ? 'Searching with Google...' : 'Find Verified Resources with Google Search'}
+                                                    </button>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        <h4 className="font-bold text-sm flex items-center gap-2 text-blue-800">
+                                                            <Search className="w-4 h-4" />
+                                                            Verified Resources (via Google Search)
+                                                        </h4>
+                                                        <div className="grid gap-2">
+                                                            {groundedResources.map((resource, idx) => (
+                                                                <a
+                                                                    key={idx}
+                                                                    href={resource.url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100 hover:border-blue-300 hover:bg-blue-100 transition-all group"
+                                                                >
+                                                                    {getIconForType(resource.type)}
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium text-slate-800 truncate">{resource.title}</p>
+                                                                        <p className="text-xs text-slate-500 truncate">
+                                                                            {(() => { try { return new URL(resource.url).hostname; } catch { return resource.url; } })()}
+                                                                        </p>
+                                                                    </div>
+                                                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 flex-shrink-0" />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 

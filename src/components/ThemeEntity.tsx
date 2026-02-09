@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSound } from '@/contexts/SoundContext';
 import { CelestialBody, type CelestialType } from './CelestialBody';
 
 export type NeuralType = 'neuron' | 'node' | 'synapse' | 'brain';
@@ -12,6 +13,7 @@ interface ThemeEntityProps {
     index?: number;
     seed?: string;
     type?: EntityType;
+    progress?: number; // 0 to 1
 }
 
 const NEURAL_TYPES: NeuralType[] = ['neuron', 'node', 'synapse', 'brain'];
@@ -32,9 +34,12 @@ function getEntityType(themeId: string, index: number): EntityType {
 }
 
 // Neural Entity - Neurons, nodes, synapses, brains
-const NeuralEntity: React.FC<{ size: number; type: NeuralType; index: number; colors: { primary: string; accent: string; glow: string } }> = ({
-    size, type, index, colors
+// Neural Entity - Neurons, nodes, synapses, brains
+const NeuralEntity: React.FC<{ size: number; type: NeuralType; index: number; colors: { primary: string; accent: string; glow: string }; progress?: number }> = ({
+    size, type, colors, progress = 0
 }) => {
+    const isIgnited = progress > 0.8;
+    const activityLevel = 1.5 + (progress * 2);
 
     // Different neural shapes based on type
     const renderShape = () => {
@@ -49,52 +54,56 @@ const NeuralEntity: React.FC<{ size: number; type: NeuralType; index: number; co
                                 x1="24" y1="24"
                                 x2={24 + Math.cos(angle * Math.PI / 180) * 20}
                                 y2={24 + Math.sin(angle * Math.PI / 180) * 20}
-                                stroke={colors.accent}
-                                strokeWidth="2"
+                                stroke={isIgnited ? colors.accent : colors.glow}
+                                strokeWidth={isIgnited ? "2.5" : "2"}
                                 strokeLinecap="round"
                                 animate={{ opacity: [0.4, 1, 0.4] }}
-                                transition={{ duration: 1.5, delay: i * 0.2, repeat: Infinity }}
+                                transition={{ duration: 1.5 / activityLevel, delay: i * 0.1, repeat: Infinity }}
                             />
                         ))}
                         {/* Cell body */}
                         <motion.circle
-                            cx="24" cy="24" r="10"
-                            fill={colors.primary}
+                            cx="24" cy="24" r="8"
+                            fill={isIgnited ? colors.accent : colors.primary}
                             animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
+                            transition={{ duration: 2 / activityLevel, repeat: Infinity }}
                         />
-                        {/* Nucleus */}
-                        <circle cx="24" cy="24" r="4" fill={colors.accent} />
+                        <circle cx="24" cy="24" r="4" fill={colors.glow} opacity="0.8" />
+
+                        {/* Nucleus spark */}
+                        {isIgnited && (
+                            <motion.circle
+                                cx="24" cy="24" r="2"
+                                fill="#fff"
+                                animate={{ opacity: [0.5, 1, 0.5] }}
+                                transition={{ duration: 0.2, repeat: Infinity }}
+                            />
+                        )}
                     </svg>
                 );
 
             case 'node':
                 return (
                     <svg viewBox="0 0 48 48" className="w-full h-full">
-                        {/* Outer ring pulse */}
                         <motion.circle
-                            cx="24" cy="24" r="18"
-                            fill="none"
-                            stroke={colors.accent}
-                            strokeWidth="1"
-                            animate={{ r: [18, 22, 18], opacity: [0.8, 0.2, 0.8] }}
-                            transition={{ duration: 2, repeat: Infinity }}
+                            cx="24" cy="24" r={isIgnited ? 14 : 12}
+                            fill={colors.primary}
+                            opacity="0.6"
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 3 / activityLevel, repeat: Infinity }}
                         />
-                        {/* Main node */}
-                        <motion.circle
-                            cx="24" cy="24" r="14"
-                            fill={`url(#nodeGradient-${index})`}
-                            animate={{ scale: [1, 1.05, 1] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                        />
-                        {/* Inner glow */}
-                        <circle cx="24" cy="24" r="6" fill={colors.accent} opacity="0.6" />
-                        <defs>
-                            <radialGradient id={`nodeGradient-${index}`} cx="30%" cy="30%">
-                                <stop offset="0%" stopColor={colors.accent} />
-                                <stop offset="100%" stopColor={colors.primary} />
-                            </radialGradient>
-                        </defs>
+                        <circle cx="24" cy="24" r="6" fill={colors.accent} />
+                        {[0, 1, 2].map(i => (
+                            <motion.path
+                                key={i}
+                                d={`M 24 24 L ${24 + Math.cos(i * 2.1) * 20} ${24 + Math.sin(i * 2.1) * 20}`}
+                                stroke={colors.glow}
+                                strokeWidth="1"
+                                strokeDasharray="4 4"
+                                animate={{ strokeDashoffset: [0, -8] }}
+                                transition={{ duration: 1 / activityLevel, repeat: Infinity, ease: "linear" }}
+                            />
+                        ))}
                     </svg>
                 );
 
@@ -183,16 +192,16 @@ const NeuralEntity: React.FC<{ size: number; type: NeuralType; index: number; co
 };
 
 // Forest Entity - Floating Islands with different tree types
-const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; colors: { primary: string; secondary: string; accent: string; glow: string } }> = ({
-    size, type, index, colors
+const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; colors: { primary: string; secondary: string; accent: string; glow: string }; progress?: number }> = ({
+    size, type, index, colors, progress = 0
 }) => {
-    // Generate random seed for organic variation based on index
-    const randomSeed = (index * 1337) % 100;
     const islandShapeVariance = [
         "M 10 34 Q 24 38 38 34 Q 36 42 24 46 Q 12 42 10 34", // Standard
         "M 12 34 Q 24 36 36 34 Q 38 40 30 46 Q 18 48 10 40 Q 8 36 12 34", // lopsided
         "M 8 34 Q 24 40 40 34 Q 36 44 24 48 Q 12 44 8 34" // Deep
     ][index % 3];
+
+    const isBlooming = progress > 0.8;
 
     const renderTree = () => {
         switch (type) {
@@ -215,6 +224,16 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                         <circle cx="16" cy="14" r="5" fill={colors.primary} opacity="0.6" />
                         <circle cx="30" cy="16" r="6" fill={colors.secondary} opacity="0.4" />
                         <circle cx="24" cy="24" r="8" fill={colors.secondary} opacity="0.3" />
+
+                        {isBlooming && (
+                            <>
+                                <motion.circle cx="18" cy="12" r="2" fill={colors.accent} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.1 }} />
+                                <motion.circle cx="30" cy="14" r="2" fill={colors.accent} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }} />
+                                <motion.circle cx="24" cy="22" r="2" fill={colors.accent} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3 }} />
+                                <motion.circle cx="14" cy="20" r="1.5" fill={colors.accent} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4 }} />
+                                <motion.circle cx="34" cy="20" r="1.5" fill={colors.accent} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.5 }} />
+                            </>
+                        )}
                     </g>
                 );
 
@@ -234,6 +253,14 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                             transition={{ duration: 3, repeat: Infinity, delay: index * 0.5 }} />
                         <path d="M 24 12 L 36 32 L 12 32 Z" fill={colors.primary} opacity="0.8" />
                         <path d="M 24 20 L 34 36 L 14 36 Z" fill={colors.secondary} opacity="0.6" />
+
+                        {isBlooming && (
+                            <>
+                                <motion.circle cx="24" cy="4" r="1.5" fill={colors.accent} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} />
+                                <motion.circle cx="10" cy="24" r="1" fill={colors.accent} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
+                                <motion.circle cx="38" cy="24" r="1" fill={colors.accent} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} />
+                            </>
+                        )}
                     </g>
                 );
 
@@ -242,26 +269,32 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                     <g transform="translate(0, -2)">
                         <path d="M 22 38 Q 20 30 18 26 M 26 38 Q 28 30 30 26" stroke={colors.secondary} strokeWidth="2" fill="none" />
                         <rect x="22" y="24" width="4" height="14" fill={colors.secondary} />
-                        <change>
-                            <ellipse cx="24" cy="18" rx="12" ry="10" fill={colors.primary} opacity="0.4" />
-                            {[-3, -1, 1, 3].map((offset, i) => (
-                                <motion.path
-                                    key={i}
-                                    d={`M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`}
-                                    stroke={colors.primary}
-                                    strokeWidth="1.5"
-                                    fill="none"
-                                    animate={{
-                                        d: [
-                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`,
-                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6 + 2} 28 ${24 + offset * 8 + 1} 44`,
-                                            `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`
-                                        ]
-                                    }}
-                                    transition={{ duration: 3 + i, repeat: Infinity, ease: "easeInOut" }}
-                                />
-                            ))}
-                        </change>
+                        <ellipse cx="24" cy="18" rx="12" ry="10" fill={colors.primary} opacity="0.4" />
+                        {[-3, -1, 1, 3].map((offset, i) => (
+                            <motion.path
+                                key={i}
+                                d={`M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`}
+                                stroke={colors.primary}
+                                strokeWidth="1.5"
+                                fill="none"
+                                animate={{
+                                    d: [
+                                        `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`,
+                                        `M ${24 + offset * 3} 14 Q ${24 + offset * 6 + 2} 28 ${24 + offset * 8 + 1} 44`,
+                                        `M ${24 + offset * 3} 14 Q ${24 + offset * 6} 28 ${24 + offset * 8} 44`
+                                    ]
+                                }}
+                                transition={{ duration: 3 + i, repeat: Infinity, ease: "easeInOut" }}
+                            />
+                        ))}
+
+                        {isBlooming && (
+                            <>
+                                <motion.circle cx="16" cy="38" r="1.5" fill={colors.accent} initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
+                                <motion.circle cx="32" cy="38" r="1.5" fill={colors.accent} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} />
+                                <motion.circle cx="24" cy="42" r="1.5" fill={colors.accent} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} />
+                            </>
+                        )}
                     </g>
                 );
 
@@ -288,6 +321,13 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
                                 transition={{ duration: 4, delay: i, repeat: Infinity }}
                             />
                         ))}
+
+                        {isBlooming && (
+                            <>
+                                <circle cx="18" cy="18" r="1.5" fill={colors.accent} />
+                                <circle cx="28" cy="14" r="1.5" fill={colors.accent} />
+                            </>
+                        )}
                     </g>
                 );
 
@@ -374,49 +414,67 @@ const ForestEntity: React.FC<{ size: number; type: ForestType; index: number; co
 };
 
 // Main theme-aware entity component
-export const ThemeEntity: React.FC<ThemeEntityProps> = ({ size, index = 0, seed, type: explicitType }) => {
+export const ThemeEntity: React.FC<ThemeEntityProps> = ({ size, index = 0, seed, type: explicitType, progress = 0 }) => {
     const { currentTheme } = useTheme();
+    const { playHover } = useSound();
     const themeId = currentTheme.id;
     const { colors } = currentTheme;
 
     // Determine entity type based on theme
     const entityType = explicitType || getEntityType(themeId, index);
 
+    // Wrapper for sound
+    const SoundWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <div onMouseEnter={() => playHover()} className="contents">
+            {children}
+        </div>
+    );
+
     // Check if it's a neural type
     if (themeId === 'brain' && NEURAL_TYPES.includes(entityType as NeuralType)) {
         return (
-            <NeuralEntity
-                size={size}
-                type={entityType as NeuralType}
-                index={index}
-                colors={{
-                    primary: colors.primary,
-                    accent: colors.accent,
-                    glow: colors.glow,
-                }}
-            />
+            <SoundWrapper>
+                <NeuralEntity
+                    size={size}
+                    type={entityType as NeuralType}
+                    index={index}
+                    colors={{
+                        primary: colors.primary,
+                        accent: colors.accent,
+                        glow: colors.glow,
+                    }}
+                    progress={progress}
+                />
+            </SoundWrapper>
         );
     }
 
     // Check if it's a forest type
     if (themeId === 'tree' && FOREST_TYPES.includes(entityType as ForestType)) {
         return (
-            <ForestEntity
-                size={size}
-                type={entityType as ForestType}
-                index={index}
-                colors={{
-                    primary: colors.primary,
-                    secondary: colors.secondary,
-                    accent: colors.accent,
-                    glow: colors.glow,
-                }}
-            />
+            <SoundWrapper>
+                <ForestEntity
+                    size={size}
+                    type={entityType as ForestType}
+                    index={index}
+                    colors={{
+                        primary: colors.primary,
+                        secondary: colors.secondary,
+                        accent: colors.accent,
+                        glow: colors.glow,
+                    }}
+                    progress={progress}
+                />
+            </SoundWrapper>
         );
     }
 
     // Default to celestial body for space theme
-    return <CelestialBody size={size} index={index} seed={seed} type={entityType as CelestialType} />;
+    return (
+        <SoundWrapper>
+            <CelestialBody size={size} index={index} seed={seed} type={entityType as CelestialType} progress={progress} />
+        </SoundWrapper>
+    );
 };
 
 // Theme-aware central entity (sun/brain/tree)

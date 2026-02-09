@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { SoundProvider } from './contexts/SoundContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TooltipProvider } from './components/TooltipSystem';
 import { LandingPage } from './pages/LandingPage';
@@ -32,45 +33,47 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <ToastProvider>
-            <TooltipProvider>
-              <MessagingProvider>
-                <Router>
-                  <MessagingDrawer />
-                  <Routes>
-                    <Route path="/" element={<LandingPage />} />
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <PrivateRoute>
-                          <Dashboard />
-                        </PrivateRoute>
-                      }
-                    />
-                    <Route
-                      path="/plan/:id"
-                      element={
-                        <PrivateRoute>
-                          <PlanDetailsPage />
-                        </PrivateRoute>
-                      }
-                    />
-                    <Route
-                      path="/profile"
-                      element={
-                        <PrivateRoute>
-                          <ProfilePage />
-                        </PrivateRoute>
-                      }
-                    />
-                    <Route path="/community" element={<CommunityFeed />} />
-                    <Route path="/demo/community" element={<CommunityFeed demoMode={true} />} />
-                    <Route path="/demo/profile" element={<ProfilePage demoMode={true} />} />
-                    {/* Demo Route for testing */}
-                    <Route path="/demo" element={<Dashboard demoMode={true} />} />
-                  </Routes>
-                </Router>
-              </MessagingProvider>
-            </TooltipProvider>
+            <SoundProvider>
+              <TooltipProvider>
+                <MessagingProvider>
+                  <Router>
+                    <MessagingDrawer />
+                    <Routes>
+                      <Route path="/" element={<LandingPage />} />
+                      <Route
+                        path="/dashboard"
+                        element={
+                          <PrivateRoute>
+                            <Dashboard />
+                          </PrivateRoute>
+                        }
+                      />
+                      <Route
+                        path="/plan/:id"
+                        element={
+                          <PrivateRoute>
+                            <PlanDetailsPage />
+                          </PrivateRoute>
+                        }
+                      />
+                      <Route
+                        path="/profile"
+                        element={
+                          <PrivateRoute>
+                            <ProfilePage />
+                          </PrivateRoute>
+                        }
+                      />
+                      <Route path="/community" element={<CommunityFeed />} />
+                      <Route path="/demo/community" element={<CommunityFeed demoMode={true} />} />
+                      <Route path="/demo/profile" element={<ProfilePage demoMode={true} />} />
+                      {/* Demo Route for testing */}
+                      <Route path="/demo" element={<Dashboard demoMode={true} />} />
+                    </Routes>
+                  </Router>
+                </MessagingProvider>
+              </TooltipProvider>
+            </SoundProvider>
           </ToastProvider>
         </ThemeProvider>
       </AuthProvider>

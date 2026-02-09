@@ -6,29 +6,41 @@ interface WarpAnimationProps {
     isActive: boolean;
 }
 
-export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
+export const WarpAnimation: React.FC<WarpAnimationProps & { type?: 'wormhole' | 'standard' }> = ({ isActive, type = 'wormhole' }) => {
     const requestRef = useRef<number | undefined>(undefined);
     const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
 
-    // Loading messages that cycle
-    const messages = useMemo(() => [
-        "Traversing the cosmic unknown...",
-        "Bending spacetime...",
-        "Entering the wormhole...",
-        "Discovering new possibilities...",
-    ], []);
+    // Messages based on type
+    const messages = useMemo(() => {
+        if (type === 'standard') {
+            return [
+                "Analyzing your vision...",
+                "Consulting the Oracle...",
+                "Constructing timeline...",
+                "Generating 8k visuals..."
+            ];
+        }
+        return [
+            "Traversing the cosmic unknown...",
+            "Bending spacetime...",
+            "Entering the wormhole...",
+            "Discovering new possibilities...",
+        ];
+    }, [type]);
 
     const [messageIndex, setMessageIndex] = useState(0);
 
     // Callback ref - this gets called when the canvas is attached to the DOM
     const canvasCallbackRef = useCallback((canvas: HTMLCanvasElement | null) => {
-        // console.log("📍 Canvas callback ref called - canvas:", !!canvas);
         setCanvasElement(canvas);
     }, []);
 
     // Message cycling effect
     useEffect(() => {
         if (!isActive) return;
+        // Reset index when activating
+        setMessageIndex(0);
+
         const interval = setInterval(() => {
             setMessageIndex((prev) => (prev + 1) % messages.length);
         }, 2000);
@@ -37,33 +49,21 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
 
     // WebGL Animation Effect - triggers when canvas element is available
     useEffect(() => {
-        // console.log("🌀 WebGL effect triggered - isActive:", isActive, "canvas:", !!canvasElement);
+        if (!isActive) return;
+        if (!canvasElement) return;
 
-        if (!isActive) {
-            // console.log("❌ Not active, skipping WebGL setup");
-            return;
-        }
-
-        if (!canvasElement) {
-            // console.log("⏳ Canvas not available yet, waiting...");
-            return;
-        }
-
-        // console.log("✅ Setting up WebGL...");
         const canvas = canvasElement;
         const gl = canvas.getContext("webgl");
         if (!gl) {
             console.error("❌ WebGL not supported");
             return;
         }
-        // console.log("✅ WebGL context created");
 
         // Set dimensions
         const setDimensions = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             gl.viewport(0, 0, canvas.width, canvas.height);
-            // console.log(`📏 Canvas resized to ${canvas.width}x${canvas.height}`);
         };
         setDimensions();
         window.addEventListener('resize', setDimensions);
@@ -81,6 +81,8 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
         const fragShaderSrc = `
             precision highp float;
             uniform float uTime;
+            uniform float uSpeed;
+            uniform float uDistortion;
             varying vec2 vUv;
 
             float rand(vec2 co) {
@@ -92,8 +94,9 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
                 float dist = length(uv);
                 float angle = atan(uv.y, uv.x);
 
-                float warp = (1.0 - dist) * 2.0;
-                float t = uTime * 0.5;
+                // Distortion controlled by uniform
+                float warp = (1.0 - dist) * uDistortion;
+                float t = uTime * uSpeed;
 
                 // spiraling motion
                 float a = angle + t * 2.0;
@@ -106,7 +109,13 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
                 col += stars;
 
                 // Add color cycling
-                col = col * vec3(0.5 + 0.5 * sin(uTime), 0.3, 0.8);
+                col = col * vec3(0.5 + 0.5 * sin(uTime * 0.5), 0.3, 0.8);
+
+                // Standard mode is more purple/calm, Wormhole is chaotic
+                // Use mix instead of branch for better WebGL compatibility
+                float isStandard = step(uSpeed, 0.3); // 1.0 if uSpeed < 0.3
+                vec3 purpleTint = vec3(0.8, 0.4, 1.0);
+                col = mix(col, col * purpleTint, isStandard);
 
                 gl_FragColor = vec4(col, 1.0);
             }
@@ -141,7 +150,6 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
             console.error("❌ Program link error:", gl.getProgramInfoLog(program));
             return;
         }
-        // console.log("✅ Shaders compiled and linked successfully");
 
         gl.useProgram(program);
 
@@ -162,46 +170,37 @@ export const WarpAnimation: React.FC<WarpAnimationProps> = ({ isActive }) => {
         gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
         const timeLoc = gl.getUniformLocation(program, "uTime");
+        const speedLoc = gl.getUniformLocation(program, "uSpeed");
+        const distortionLoc = gl.getUniformLocation(program, "uDistortion");
+
+        // Set visual parameters based on type
+        const speed = type === 'standard' ? 0.2 : 0.5;
+        const distortion = type === 'standard' ? 1.0 : 2.0;
 
         // Render Loop
         const render = (time: number) => {
             gl.uniform1f(timeLoc, time * 0.001);
+            gl.uniform1f(speedLoc, speed);
+            gl.uniform1f(distortionLoc, distortion);
+
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-            // Log first few frames to confirm rendering
-            // if (frameCount < 3) {
-            //     console.log(`🎨 Frame ${frameCount} rendered at time ${time.toFixed(2)}ms`);
-            //     frameCount++;
-            // }
-
             requestRef.current = requestAnimationFrame(render);
         };
 
         requestRef.current = requestAnimationFrame(render);
 
         return () => {
-            // console.log("🧹 Cleaning up WebGL resources");
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             window.removeEventListener('resize', setDimensions);
             gl.deleteProgram(program);
         };
-    }, [isActive, canvasElement]);
+    }, [isActive, canvasElement, type]);
 
-    if (typeof document === 'undefined') {
-        // console.log("❌ Document not available (SSR?)");
-        return null;
-    }
-    if (!isActive) {
-        // console.log("❌ WarpAnimation not active, returning null");
-        return null;
-    }
-
-    // console.log("🚀 WarpAnimation RENDERING - creating portal to body");
+    if (typeof document === 'undefined') return null;
+    if (!isActive) return null;
 
     return createPortal(
-        <div
-            className="fixed inset-0 z-[2147483647] overflow-hidden bg-black"
-        >
+        <div className="fixed inset-0 z-[2147483647] overflow-hidden bg-black">
             <canvas
                 ref={canvasCallbackRef}
                 id="wormhole"

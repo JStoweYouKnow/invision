@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Tooltip } from '@/components/TooltipSystem';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Star, Globe, User, MessageCircle, LayoutDashboard, Bell } from 'lucide-react';
+import { Star, Globe, User, MessageCircle, LayoutDashboard, Bell, Volume2, VolumeX } from 'lucide-react';
 import { useMessaging } from '@/contexts/MessagingContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSound } from '@/contexts/SoundContext';
 import { firestoreService } from '@/lib/firestore';
 import { notificationService, type Notification } from '@/lib/notifications';
 
@@ -17,6 +18,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({ className = "", 
     const navigate = useNavigate();
     const { openDrawer } = useMessaging();
     const { user } = useAuth();
+    const { isEnabled, toggleSound } = useSound();
     const pathname = location.pathname;
     const [totalUnread, setTotalUnread] = useState(0);
     const [notificationCount, setNotificationCount] = useState(0);
@@ -126,6 +128,16 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({ className = "", 
                     )}
                 </div>
                 <span className="hidden md:inline" style={{ color: 'white' }}>Alerts</span>
+            </button>
+
+            <button
+                onClick={toggleSound}
+                className={`${linkBaseClass} ${isEnabled ? activeClass : inactiveClass} bg-transparent border-none cursor-pointer`}
+                style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit', color: 'white' }}
+                title={isEnabled ? "Mute Sound" : "Enable Sound"}
+            >
+                {isEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                <span className="hidden md:inline" style={{ color: 'white' }}>Sound</span>
             </button>
 
             <Link

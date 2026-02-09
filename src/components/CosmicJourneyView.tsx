@@ -4,34 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import type { SavedGoal } from '@/lib/firestore';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ThemeEntity, type EntityType } from './ThemeEntity';
+import { useGalaxyEngine } from '@/hooks/useGalaxyEngine';
 
 interface CosmicJourneyViewProps {
     goals: SavedGoal[];
 }
 
-// Position planetoids in a spiral pattern across the canvas using Golden Section Spiral (Phyllotaxis)
-const getPlanetoidPosition = (index: number, total: number) => {
-    // Golden angle in radians
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
-    // Scale factor to determine spread (approx distance between items)
-    // We adjust this so that the furthest item is at roughly 40-42% radius max
-    const maxRadiusPercent = 42;
-    const baseScale = 9; // Good starting spread for small number of items
+// Local patterns removed in favor of useGalaxyEngine
 
-    // Calculate if we need to shrink to fit
-    const maxSqrt = Math.sqrt(total || 1);
-    const scale = Math.min(baseScale, maxRadiusPercent / maxSqrt);
-
-    const radius = scale * Math.sqrt(index + 1);
-    const angle = index * goldenAngle;
-
-    // Center is 50, 50
-    return {
-        x: 50 + Math.cos(angle) * radius * 1.2, // Spread slightly wider horizontally (landscape)
-        y: 50 + Math.sin(angle) * radius * 0.9, // Slightly tighter vertically
-    };
-};
 
 // Constellation patterns with relative coordinates (x, y) [-1 to 1 range] and connections
 const CONSTELLATIONS: Record<number, { points: { x: number; y: number }[]; connections: [number, number][] }> = {
@@ -97,45 +78,26 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
     const isBrainTheme = currentTheme.id === 'brain';
 
     // Calculate positions based on theme
-    const getPosition = (index: number, total: number) => {
-        if (isTreeTheme) {
-            // Tree layout - phyllotaxis spiral for leaves resembling a canopy
-            const angle = index * 137.5 * (Math.PI / 180); // Golden angle
-            const spread = 200 / Math.sqrt(total + 1); // Density scaling
-            const r = spread * Math.sqrt(index + 1);
+    // Use the Galaxy Engine for consistent physics and layout
+    // We Map goals to the engine's item format
+    const { nodes } = useGalaxyEngine(goals, {
+        centerX: 50,
+        centerY: 50,
+        spreadFactor: isBrainTheme ? 15 : 18, // Tighter for brain
+        zoomLevel: 1,
+        spiralConstant: 2.4 // Golden angle approximation
+    });
 
-            // Offset to center (50, 40) - slightly higher to account for trunk
-            return {
-                x: 50 + r * Math.cos(angle) * 0.15, // Spread wider horizontally
-                y: 35 + r * Math.sin(angle) * 0.12  // Compact vertically
-            };
-        } else if (isBrainTheme) {
-            // Brain layout - 3D-like cluster constrained to brain shape
-            // Using a seeded random distribution roughly shaped like a brain (oval)
-            const seed = (index + 1) * 123.45;
-
-            // Distribute points in an ellipsoid
-            // We want a dense cluster in the center area
-            // r goes from 0 to 1, distributed to favor center slightly but cover area
-            const r = Math.sqrt(pseudoRandom(seed)) * 38; // Max radius ~38%
-            const theta = pseudoRandom(seed + 1) * 2 * Math.PI;
-
-            // Aspect ratio for brain (wider than tall)
-            const xOffset = r * Math.cos(theta);
-            const yOffset = r * Math.sin(theta) * 0.75;
-
-            return {
-                x: 50 + xOffset,
-                y: 50 + yOffset
-            };
-        }
-        return getPlanetoidPosition(index, total);
+    // Helper to get position from nodes (fallback for non-engine usages if any)
+    const getPosition = (index: number) => {
+        const node = nodes[index];
+        return node ? { x: node.x, y: node.y } : { x: 50, y: 50 };
     };
 
     // Calculate neural connections (nearest neighbors)
     const getNeuralConnections = () => {
         const connections: { start: { x: number, y: number }, end: { x: number, y: number }, key: string }[] = [];
-        const positions = goals.map((_, i) => getPosition(i, goals.length));
+        const positions = goals.map((_, i) => getPosition(i));
 
         // For each node, connect to k nearest neighbors
         positions.forEach((pos1, i) => {
@@ -371,7 +333,7 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
                     </defs>
 
                     {goals.map((goal, goalIndex) => {
-                        const planetPos = getPosition(goalIndex, goals.length);
+                        const planetPos = getPosition(goalIndex);
                         const phases = goal.plan?.timeline || [];
                         const starPositions = phases.map((_, phaseIdx) =>
                             getPhaseStarPosition(phaseIdx, phases.length, planetPos.x, planetPos.y)
@@ -416,7 +378,7 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
 
             {/* Journey Nodes (Planetoids or Leaves) */}
             {goals.map((goal, goalIndex) => {
-                const position = getPosition(goalIndex, goals.length);
+                const position = getPosition(goalIndex);
                 const phases = goal.plan?.timeline || [];
                 // Brain nodes are smaller and uniform
                 const entitySize = (isTreeTheme || isBrainTheme) ? (isBrainTheme ? 30 : 50) : 40 + Math.min(phases.length * 3, 20);
@@ -517,6 +479,7 @@ export const CosmicJourneyView: React.FC<CosmicJourneyViewProps> = ({ goals }) =
                                     index={seedIndex}
                                     seed={goal.id}
                                     type={entityVisualType as EntityType}
+                                    progress={phases.length > 0 ? phases.filter(p => p.isCompleted).length / phases.length : 0}
                                 />
                             </div>
 

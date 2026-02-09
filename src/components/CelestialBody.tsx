@@ -51,7 +51,7 @@ const getCelestialType = (index: number): CelestialType => {
     return types[index % types.length];
 };
 
-export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, type: explicitType }) => {
+export const CelestialBody: React.FC<CelestialBodyProps & { progress?: number }> = ({ size, index = 0, type: explicitType, progress = 0 }) => {
     const type = explicitType || getCelestialType(index);
     const config = CELESTIAL_CONFIG[type];
 
@@ -63,7 +63,16 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
 
     // Generate a consistent hue rotation based on the index to ensure every body looks distinct
     // We use a large prime multiplier to scatter the colors around the spectrum
-    const hueRotate = (index * 137) % 360;
+    const baseHueRotate = (index * 137) % 360;
+
+    // Terraforming logic:
+    // 0% -> Barren (Sepia, unsaturated)
+    // 100% -> Lush (Vibrant, slightly hue shifted towards green/blue if it was red/orange)
+
+    // Calculate terraforming filter
+    const terraformingFilter = type === 'planet' || type === 'moon'
+        ? `sepia(${Math.max(0, 0.6 - progress)}) saturate(${0.5 + progress * 0.8}) hue-rotate(${-20 * progress}deg) brightness(${0.9 + progress * 0.3})`
+        : '';
 
     const animations = {
         wobble: {
@@ -84,7 +93,8 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
                 height: size,
                 perspective: '600px',
                 perspectiveOrigin: 'center',
-                filter: `hue-rotate(${hueRotate}deg)`,
+                filter: `hue-rotate(${baseHueRotate}deg) ${terraformingFilter}`,
+                transition: 'filter 2s ease-in-out'
             }}
         >
             {/* Outer glow effect */}
@@ -92,9 +102,25 @@ export const CelestialBody: React.FC<CelestialBodyProps> = ({ size, index = 0, t
                 className="absolute inset-0 rounded-full blur-md pointer-events-none"
                 style={{
                     background: `radial-gradient(circle, ${config.glow} 0%, transparent 70%)`,
-                    transform: 'scale(1)', // Reverted scale since ringed planet is removed
+                    transform: 'scale(1)',
+                    opacity: 0.5 + (progress * 0.5)
                 }}
             />
+
+            {/* Atmosphere (Terraforming Glow) */}
+            {(type === 'planet' || type === 'icePlanet') && progress > 0.3 && (
+                <motion.div
+                    className="absolute inset-0 rounded-full pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: progress * 0.6 }}
+                    style={{
+                        background: `radial-gradient(circle, rgba(100, 255, 218, 0.4) 10%, transparent 80%)`, // Cyan/Green atmosphere
+                        mixBlendMode: 'screen',
+                        transform: 'scale(1.1)',
+                    }}
+                    transition={{ duration: 2 }}
+                />
+            )}
 
             {/* Main celestial body */}
             <motion.div

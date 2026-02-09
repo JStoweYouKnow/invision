@@ -102,59 +102,68 @@ export const LandingPage: React.FC = () => {
 
 
     const handleGoalSubmit = async (goal: string, timeline: string, image?: File) => {
+        console.log("🚀 handleGoalSubmit started", { goal, timeline });
         setIsLoading(true);
         setPlanSaved(false); // Reset saved state for new goal
         try {
-            // Generate plan with retry logic for robustness
+            // Step 1: Generate plan (must complete before showing UI)
             const generatedPlanResult = await withRetry(
                 () => geminiService.generatePlan(goal, timeline, image),
                 3,
-                1500
+                500
             );
 
-            // Check if user wants their profile photo included in vision images
+            // Show plan immediately — don't wait for image
+            setGeneratedPlan(generatedPlanResult);
+            setIsLoading(false);
+
+            // Step 2: Generate image in background (non-blocking)
             const includeProfilePhoto = userProfile?.preferences?.includeProfileInVisions && userProfile?.photoURL;
             const profilePhotoForVision = includeProfilePhoto ? userProfile.photoURL : undefined;
 
-            // Generate image with retry logic (image generation can be flaky)
-            let generatedImgUrl: string;
-            try {
-                generatedImgUrl = await withRetry(
-                    () => geminiService.generateVisionImage(
-                        goal,
-                        generatedPlanResult.visionaryDescription,
-                        profilePhotoForVision
-                    ),
-                    2,
-                    2000
-                );
-            } catch (imgError) {
-                console.warn('Image generation failed, using fallback:', imgError);
-                // Fallback to a placeholder image if generation fails
-                generatedImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(`cinematic shot of ${goal}, futuristic, inspirational`)}?width=800&height=600&nologo=true`;
-            }
+            const imagePromise = withRetry(
+                () => geminiService.generateVisionImage(
+                    goal,
+                    generatedPlanResult.visionaryDescription,
+                    profilePhotoForVision
+                ),
+                2,
+                500
+            ).catch((imgError) => {
+                console.warn('Image generation failed:', imgError);
+                return '';
+            });
 
-            setGeneratedPlan(generatedPlanResult);
-            setVisionImage(generatedImgUrl);
-
-            // Auto-save if logged in
-            if (user) {
-                const goalId = await firestoreService.saveGoal(
+            // Step 3: Save to Firestore in parallel with image generation
+            const savePromise = user
+                ? firestoreService.saveGoal(
                     user.uid,
                     generatedPlanResult,
-                    generatedImgUrl,
+                    '', // Image not ready yet — will update after
                     user.displayName || 'Anonymous',
                     user.photoURL || undefined
-                );
+                )
+                : Promise.resolve(null);
+
+            // Wait for both image and save to complete
+            const [generatedImgUrl, goalId] = await Promise.all([imagePromise, savePromise]);
+
+            setVisionImage(generatedImgUrl);
+
+            if (user && goalId) {
+                // Update the saved goal with the generated image
+                try {
+                    await firestoreService.updateGoalImage(goalId, generatedImgUrl);
+                } catch { /* non-critical */ }
+
                 setPlanSaved(true);
 
-                // Schedule milestone reminders
-                await scheduleMilestoneReminders(user.uid, goalId, generatedPlanResult);
-
-                // Show success notification
+                // Schedule reminders (non-blocking)
+                scheduleMilestoneReminders(user.uid, goalId, generatedPlanResult).catch(() => { });
                 showSuccess("Vision created! Reminders scheduled for your milestones.");
             }
         } catch (error) {
+            setIsLoading(false);
             const errorMessage = (error as Error).message;
             if (errorMessage.includes('quota') || errorMessage.includes('rate')) {
                 showError("API rate limit reached. Please wait a moment and try again.");
@@ -163,8 +172,6 @@ export const LandingPage: React.FC = () => {
             } else {
                 showError(`Failed to generate plan: ${errorMessage}`);
             }
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -196,51 +203,57 @@ export const LandingPage: React.FC = () => {
         setPlanSaved(false);
 
         try {
-            // Generate random plan with retry logic
+            // Step 1: Generate random plan (must complete before showing UI)
             const generatedPlanResult = await withRetry(
                 () => geminiService.generatePlan("", "flexible", undefined, true),
                 3,
-                2000
+                500
             );
 
-            // Check if user wants their profile photo included in vision images
+            // Show plan immediately — don't wait for image
+            setGeneratedPlan(generatedPlanResult);
+            setIsLoading(false);
+            setIsWormholeActive(false);
+
+            // Step 2: Generate image in background (non-blocking)
             const includeProfilePhoto = userProfile?.preferences?.includeProfileInVisions && userProfile?.photoURL;
             const profilePhotoForVision = includeProfilePhoto ? userProfile.photoURL : undefined;
 
-            // Generate image with retry and fallback
-            let generatedImgUrl: string;
-            try {
-                generatedImgUrl = await withRetry(
-                    () => geminiService.generateVisionImage(
-                        generatedPlanResult.title,
-                        generatedPlanResult.visionaryDescription,
-                        profilePhotoForVision
-                    ),
-                    2,
-                    2000
-                );
-            } catch (imgError) {
-                console.warn('Wormhole image generation failed, using fallback:', imgError);
-                generatedImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(`cinematic shot of ${generatedPlanResult.title}, futuristic, inspirational, cosmic`)}?width=800&height=600&nologo=true`;
-            }
+            const imagePromise = withRetry(
+                () => geminiService.generateVisionImage(
+                    generatedPlanResult.title,
+                    generatedPlanResult.visionaryDescription,
+                    profilePhotoForVision
+                ),
+                2,
+                500
+            ).catch((imgError) => {
+                console.warn('Wormhole image generation failed:', imgError);
+                return '';
+            });
 
-            setGeneratedPlan(generatedPlanResult);
-            setVisionImage(generatedImgUrl);
-
-            // Auto-save if logged in
-            if (user) {
-                const goalId = await firestoreService.saveGoal(
+            // Step 3: Save to Firestore in parallel with image generation
+            const savePromise = user
+                ? firestoreService.saveGoal(
                     user.uid,
                     generatedPlanResult,
-                    generatedImgUrl,
+                    '',
                     user.displayName || 'Anonymous',
                     user.photoURL || undefined
-                );
+                )
+                : Promise.resolve(null);
+
+            const [generatedImgUrl, goalId] = await Promise.all([imagePromise, savePromise]);
+
+            setVisionImage(generatedImgUrl);
+
+            if (user && goalId) {
+                try {
+                    await firestoreService.updateGoalImage(goalId, generatedImgUrl);
+                } catch { /* non-critical */ }
+
                 setPlanSaved(true);
-
-                // Schedule milestone reminders
-                await scheduleMilestoneReminders(user.uid, goalId, generatedPlanResult);
-
+                scheduleMilestoneReminders(user.uid, goalId, generatedPlanResult).catch(() => { });
                 showSuccess("Wormhole vision created! Your cosmic journey awaits.");
             }
         } catch (error) {
@@ -296,8 +309,11 @@ export const LandingPage: React.FC = () => {
             {/* Onboarding Tour for first-time users */}
             <OnboardingTour />
 
-            {/* Wormhole Animation Overlay */}
-            <WarpAnimation isActive={isWormholeActive} />
+            {/* Wormhole Animation Overlay — only for "Surprise Me" */}
+            <WarpAnimation
+                isActive={isWormholeActive}
+                type="wormhole"
+            />
 
             {/* Theme Background - Persistent */}
             <ThemeBackground className="z-0" />

@@ -1,6 +1,8 @@
-import { GoogleGenerativeAI, type Part, type ChatSession, SchemaType, type Schema } from "@google/generative-ai";
+import { GoogleGenerativeAI, type Part, type ChatSession, SchemaType, type Schema, type Tool, FunctionCallingMode } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+const genAINew = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" });
 
 // Fetch with timeout helper
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 10000): Promise<Response> {
@@ -211,6 +213,95 @@ const themeSchema: Schema = {
     },
     required: ["name", "description", "colors", "particles"]
 };
+
+// Function Calling Tool Declarations for Vision Guide chat
+const planRefinementTools: Tool[] = [{
+    functionDeclarations: [
+        {
+            name: "update_plan",
+            description: "Update the user's goal plan. Call this whenever the user asks to change dates, add/remove steps, rename milestones, modify descriptions, or restructure the plan.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    title: { type: SchemaType.STRING },
+                    description: { type: SchemaType.STRING },
+                    visionaryDescription: { type: SchemaType.STRING },
+                    timeline: {
+                        type: SchemaType.ARRAY,
+                        items: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                date: { type: SchemaType.STRING },
+                                milestone: { type: SchemaType.STRING },
+                                description: { type: SchemaType.STRING },
+                                whyItMatters: { type: SchemaType.STRING },
+                                steps: {
+                                    type: SchemaType.ARRAY,
+                                    items: {
+                                        type: SchemaType.OBJECT,
+                                        properties: {
+                                            text: { type: SchemaType.STRING },
+                                            date: { type: SchemaType.STRING },
+                                            habit: { type: SchemaType.STRING }
+                                        },
+                                        required: ["text", "date"]
+                                    }
+                                },
+                                resources: {
+                                    type: SchemaType.ARRAY,
+                                    items: {
+                                        type: SchemaType.OBJECT,
+                                        properties: {
+                                            title: { type: SchemaType.STRING },
+                                            url: { type: SchemaType.STRING },
+                                            type: { type: SchemaType.STRING }
+                                        },
+                                        required: ["title", "url"]
+                                    }
+                                }
+                            },
+                            required: ["date", "milestone", "description", "steps"]
+                        }
+                    },
+                    sources: {
+                        type: SchemaType.ARRAY,
+                        items: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                title: { type: SchemaType.STRING },
+                                url: { type: SchemaType.STRING }
+                            },
+                            required: ["title", "url"]
+                        }
+                    }
+                },
+                required: ["title", "description", "timeline", "sources"]
+            }
+        },
+        {
+            name: "search_resources",
+            description: "Search the web for real, verified resources (articles, videos, tools) relevant to a specific milestone. Call this when the user asks for resources, links, or learning materials.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    milestone_name: { type: SchemaType.STRING, description: "The milestone to find resources for" }
+                },
+                required: ["milestone_name"]
+            }
+        },
+        {
+            name: "regenerate_vision_image",
+            description: "Regenerate the vision board image for the plan. Call this when the user asks to change, update, or regenerate the visualization image.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    image_description: { type: SchemaType.STRING, description: "Description of what the new image should depict" }
+                },
+                required: ["image_description"]
+            }
+        }
+    ]
+}];
 
 // Model Constants
 const PRIMARY_MODEL = "gemini-3-flash-preview";
@@ -466,34 +557,23 @@ Style: photorealistic, cinematic, natural lighting, highly detailed, wide aspect
     },
 
     async startChat(_goal: string, _plan: GeneratedPlan): Promise<ChatSession> {
-        // Chat doesn't yet support structured output enforcement easily for partial turns without complex setup, 
-        // effectively using 1.5 flash for better reasoning match
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        const model = genAI.getGenerativeModel({
+            model: "gemini-3-flash-preview",
+            tools: planRefinementTools,
+            toolConfig: {
+                functionCallingConfig: { mode: FunctionCallingMode.AUTO }
+            }
+        });
 
-        // Initialize chat with context
         const chat = model.startChat({
             history: [
                 {
                     role: "user",
-                    parts: [{
-                        text: `I have a goal: ${_goal}. You created a plan for me: ${JSON.stringify(_plan)}. 
-                    
-                    IMPORTANT INSTRUCTION: 
-                    If I ask you to modify the plan (e.g., change dates, add steps, rename title, change description), 
-                    you MUST output the COMPLETE updated plan JSON object wrapped in strict delimiters.
-                    
-                    Format:
-                    Here is the updated plan... (your natural language response)
-                    ::PLAN_JSON_START::
-                    { ... complete valid JSON of the GeneratedPlan object ... }
-                    ::PLAN_JSON_END::
-                    
-                    Do NOT use markdown code blocks for the JSON inside the delimiters. Just raw JSON.`
-                    }],
+                    parts: [{ text: `I have a goal: ${_goal}. Here is my current plan: ${JSON.stringify(_plan)}.` }],
                 },
                 {
                     role: "model",
-                    parts: [{ text: "Understood. I will help you refine your plan. if you request changes, I will provide the complete updated JSON plan wrapped in ::PLAN_JSON_START:: and ::PLAN_JSON_END:: along with my helpful response." }],
+                    parts: [{ text: "I'm your Vision Guide. I can help you refine your plan — change dates, add steps, find resources, or regenerate your vision image. What would you like to adjust?" }],
                 },
             ],
         });
@@ -597,6 +677,97 @@ Reference specific things they mentioned. Keep it under 60 words.
             });
         } catch {
             return "Thank you for sharing your thoughts. Taking time to reflect on your journey shows real commitment to your growth. Keep moving forward at your own pace.";
+        }
+    },
+
+    // --- Grounding with Google Search for Resource Verification ---
+
+    async getGroundedResources(
+        goalTitle: string,
+        milestoneName: string
+    ): Promise<{ title: string; url: string; type?: 'article' | 'video' | 'tool' }[]> {
+        try {
+            console.log('[Grounding] Fetching verified resources for:', milestoneName);
+
+            const response = await genAINew.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: `Find 2-3 of the best real, currently available online resources (articles, videos, or tools) to help someone accomplish this milestone:
+
+Goal: "${goalTitle}"
+Milestone: "${milestoneName}"
+
+For each resource, provide:
+1. The exact title of the resource
+2. The exact URL (must be a real, working URL)
+3. The type: "article", "video", or "tool"
+
+Return ONLY a JSON array like: [{"title": "...", "url": "...", "type": "article"}]
+No markdown, no explanation, just the JSON array.`,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                },
+            });
+
+            const text = response.text?.trim() || '[]';
+            // Extract JSON from the response (may have markdown wrapping)
+            const jsonMatch = text.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                const resources = JSON.parse(jsonMatch[0]);
+                console.log('[Grounding] ✅ Found', resources.length, 'verified resources');
+                return resources;
+            }
+            return [];
+        } catch (error) {
+            console.warn('[Grounding] Failed to get grounded resources:', error);
+            return [];
+        }
+    },
+
+    // --- Multimodal Progress Analysis ---
+
+    async analyzeProgressPhoto(
+        goalTitle: string,
+        milestoneName: string,
+        photoDataUri: string,
+        milestoneDescription?: string
+    ): Promise<string> {
+        try {
+            console.log('[ProgressCheck] Analyzing progress photo for:', milestoneName);
+
+            // Extract base64 data and mime type from data URI
+            const matches = photoDataUri.match(/^data:(.+);base64,(.+)$/);
+            if (!matches) throw new Error('Invalid data URI');
+            const mimeType = matches[1];
+            const base64Data = matches[2];
+
+            return await generateWithFallback("analyzeProgressPhoto", async (modelName) => {
+                const model = genAI.getGenerativeModel({ model: modelName });
+
+                const result = await model.generateContent([
+                    {
+                        inlineData: {
+                            mimeType,
+                            data: base64Data,
+                        },
+                    },
+                    `You are a supportive life coach. This person is working toward: "${goalTitle}"
+Their current milestone is: "${milestoneName}"
+${milestoneDescription ? `Milestone details: ${milestoneDescription}` : ''}
+
+They just uploaded this photo as a progress check-in. Analyze the image and provide:
+1. What you observe in the photo that relates to their goal/milestone
+2. Specific encouragement about the progress you can see
+3. One actionable suggestion for their next step
+
+Be warm, specific to what you see in the image, and encouraging. Keep your response to 3-4 sentences (under 80 words).
+If the image doesn't clearly relate to the goal, still be encouraging and ask how it connects to their journey.`
+                ]);
+
+                return result.response.text().trim();
+            });
+        } catch (error) {
+            console.error('[ProgressCheck] Analysis failed:', error);
+            return "Thanks for sharing your progress photo! Visual documentation is a powerful way to track your journey. Keep capturing these moments — they'll be incredible to look back on.";
         }
     }
 };

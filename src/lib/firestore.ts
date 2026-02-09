@@ -389,6 +389,14 @@ export const firestoreService = {
         }
     },
 
+    updateGoalImage: async (goalId: string, visionImage: string): Promise<void> => {
+        try {
+            await firestoreService.updateGoal(goalId, { visionImage } as Partial<SavedGoal>);
+        } catch {
+            // Non-critical — the goal is already saved, image update is best-effort
+        }
+    },
+
     deleteGoal: async (goalId: string): Promise<void> => {
         // Handle mock goals - track as deleted
         if (goalId.startsWith('mock-goal-') || goalId.startsWith('goal_sarah') || goalId.startsWith('goal_david')) {
