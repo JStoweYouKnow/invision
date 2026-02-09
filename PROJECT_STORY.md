@@ -2,7 +2,9 @@
 
 ## The Vision
 InVision was born from a simple yet ambitious idea: **What if a todo list could dream?**
-[![InVision Demo](https://img.youtube.com/vi/KJ4fNkX6ovY/maxresdefault.jpg)](https://youtu.be/KJ4fNkX6ovY)
+### 📽️ Watch the Vision Come to Life
+![Final Submission Demo V3](/Users/v/.gemini/antigravity/brain/e62188fd-ae33-4fef-824b-58bedfa44691/invision_final_v3_demo_1770659102541.webp)
+*Journey Synthesis, Real-Time Streaming, and Wormhole Generation flow.*
 
 In a world saturated with static productivity tools, we wanted to create a "Living Vision Board" — a platform that doesn't just catalogue tasks, but actively helps users conceptualize, visualize, and manifest their future. InVision isn't just about getting things done; it's about becoming who you want to be.
 
