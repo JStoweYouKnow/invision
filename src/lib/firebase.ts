@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, disableNetwork, enableNetwork, type Firestore } from "firebase/firestore";
+import { getFirestore, disableNetwork, enableNetwork, enableMultiTabIndexedDbPersistence, type Firestore } from "firebase/firestore";
 
 // Primary Firebase Configuration
 const primaryConfig = {
@@ -23,11 +23,7 @@ const backupConfig = {
     appId: import.meta.env.VITE_FIREBASE_BACKUP_APP_ID,
 };
 
-// Check if backup config is available
-const hasBackupConfig = Boolean(backupConfig.apiKey && backupConfig.projectId);
-
-// Storage keys
-const QUOTA_EXCEEDED_KEY = 'invision_quota_exceeded';
+const hasBackupConfig = !!backupConfig.apiKey;
 const USE_BACKUP_KEY = 'invision_use_backup';
 
 // Check if we should use backup
@@ -52,6 +48,19 @@ const initializeFirebase = (useBackup: boolean) => {
         db = getFirestore(app);
         usingBackup = useBackup && hasBackupConfig;
 
+        // Enable multi-tab persistence for robustness and better offline handling
+        enableMultiTabIndexedDbPersistence(db).catch((err) => {
+            if (err.code === 'failed-precondition') {
+                // Multiple tabs open, persistence can only be enabled in one tab at a time.
+                console.warn('Firestore persistence failed: Multiple tabs open');
+            } else if (err.code === 'unimplemented') {
+                // The current browser does not support all of the features required to enable persistence
+                console.warn('Firestore persistence failed: Browser not supported');
+            } else {
+                console.warn('Firestore persistence failed:', err);
+            }
+        });
+
         if (usingBackup) {
             console.log('Using backup Firebase project');
         }
@@ -69,22 +78,11 @@ const initializeFirebase = (useBackup: boolean) => {
     }
 };
 
-// Check if quota was recently exceeded
-const isQuotaExceeded = (): boolean => {
-    const timestamp = localStorage.getItem(QUOTA_EXCEEDED_KEY);
-    if (!timestamp) return false;
-    const hourAgo = Date.now() - (60 * 60 * 1000);
-    return parseInt(timestamp) > hourAgo;
-};
-
 // Initialize with backup if previously set
 initializeFirebase(shouldUseBackup());
 
-// Disable Firestore network if quota was recently exceeded (after initialization)
-if (isQuotaExceeded()) {
-    disableNetwork(db).catch(() => {});
-    console.log('Firestore network disabled due to quota exceeded');
-}
+// REMOVED: Top-level disableNetwork call to avoid race conditions with listeners.
+// We now rely on isQuotaExceeded() guards in the firestore service.
 
 // Export instances
 export { app, auth, db };

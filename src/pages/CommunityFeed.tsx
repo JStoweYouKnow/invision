@@ -400,8 +400,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                 animate={{
                                     scale: 1,
                                     opacity: 1,
-                                    x: node.x + '%', // Engine returns percentage coordinates
-                                    y: node.y + '%'
+                                    left: node.x + '%', // Use left/top for screen percentages
+                                    top: node.y + '%'
                                 }}
                                 exit={{ scale: 0, opacity: 0 }}
                                 transition={{
@@ -411,8 +411,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ demoMode = false }
                                     delay: node.index * 0.05 // Stagger effect
                                 }}
                                 style={{
-                                    left: 0, // Engine provides absolute percentage relative to container 0,0
-                                    top: 0,
                                     zIndex: isHovered ? 60 : 30
                                 }}
                             >

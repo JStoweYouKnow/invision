@@ -1,4 +1,4 @@
-import { db, disableFirestoreNetwork, enableFirestoreNetwork, switchToBackupFirebase, hasBackupFirebaseConfig, isUsingBackupFirebase } from './firebase';
+import { db, switchToBackupFirebase, hasBackupFirebaseConfig, isUsingBackupFirebase } from './firebase';
 import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, deleteDoc, limit, orderBy, setDoc, onSnapshot } from 'firebase/firestore';
 import type { GeneratedPlan } from './gemini';
 import type { CelestialType } from '@/components/CelestialBody';
@@ -134,14 +134,14 @@ const setQuotaExceeded = () => {
         return;
     }
 
-    // Otherwise just disable Firestore network to stop retry attempts
-    disableFirestoreNetwork().catch(() => { });
+    // REMOVED: disableFirestoreNetwork call. 
+    // Manual network toggling can cause INTERNAL ASSERTION FAILED errors 
+    // if onSnapshot listeners are active. We rely on isQuotaExceeded() checks instead.
 };
 
 const clearQuotaExceeded = () => {
     localStorage.removeItem(QUOTA_EXCEEDED_KEY);
-    // Re-enable Firestore network
-    enableFirestoreNetwork().catch(() => { })
+    // REMOVED: enableFirestoreNetwork call.
 };
 
 // Helper to check if error is quota exceeded

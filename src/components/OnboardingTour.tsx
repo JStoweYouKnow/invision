@@ -22,6 +22,13 @@ const TOUR_STEPS: TourStep[] = [
         position: 'center'
     },
     {
+        id: 'personalized',
+        title: 'See Yourself Succeed',
+        description: 'Enable Personalized Visions in your Profile to see yourself in your generated vision boards. Just log in and upload a profile picture!',
+        icon: Sparkles,
+        position: 'center'
+    },
+    {
         id: 'create',
         title: 'Create Your Vision',
         description: 'Describe any goal - from learning a new skill to starting a business. Our AI will create a detailed roadmap for you.',

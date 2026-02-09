@@ -327,74 +327,6 @@ export const MOCK_ADDITIONAL_USERS: UserProfile[] = [
 
 export const MOCK_ADDITIONAL_GOALS: SavedGoal[] = [
     {
-        id: 'goal_sarah_1',
-        userId: 'dummy_sarah',
-        title: 'Open an Art Gallery in Paris',
-        description: 'To create a space where modern art meets nature in the heart of Montmartre.',
-        createdAt: new Date(),
-        visionImage: 'https://images.unsplash.com/photo-1577720580479-7d839d829c73?q=80&w=800&auto=format&fit=crop',
-        celestialType: 'planet',
-        isPublic: true,
-        plan: {
-            title: 'The Jenkins Gallery Project',
-            description: 'To create a space where modern art meets nature in the heart of Montmartre.',
-            timeline: [
-                {
-                    date: '2026-03-01',
-                    milestone: 'Concept & Funding',
-                    description: 'Finalize business plan and secure initial investment.',
-                    steps: [
-                        { text: 'Draft business proposal', date: '2026-02-15' },
-                        { text: 'Meet with investors', date: '2026-02-28' },
-                        { text: 'Register business entity in France', date: '2026-03-01' }
-                    ],
-                    isCompleted: true,
-                    resources: []
-                },
-                {
-                    date: '2026-05-15',
-                    milestone: 'Location Scouting',
-                    description: 'Find the perfect space in Montmartre.',
-                    steps: [
-                        { text: 'Contact commercial real estate agents', date: '2026-04-01' },
-                        { text: 'Tour properties in 18th Arrondissement', date: '2026-04-15' },
-                        { text: 'Sign lease', date: '2026-05-15' }
-                    ],
-                    isCompleted: false,
-                    resources: []
-                },
-                {
-                    date: '2026-08-01',
-                    milestone: 'Curation & Renovation',
-                    description: 'Prepare the space and select artists.',
-                    steps: [
-                        { text: 'Renovate gallery interior', date: '2026-06-01' },
-                        { text: 'Call for submissions', date: '2026-06-15' },
-                        { text: 'Select launch artists', date: '2026-07-20' }
-                    ],
-                    isCompleted: false,
-                    resources: []
-                },
-                {
-                    date: '2026-10-01',
-                    milestone: 'Grand Opening',
-                    description: 'Launch event for the gallery.',
-                    steps: [
-                        { text: 'Send invitations', date: '2026-09-01' },
-                        { text: 'Press release', date: '2026-09-15' },
-                        { text: 'Opening Night Gala', date: '2026-10-01' }
-                    ],
-                    isCompleted: false,
-                    resources: []
-                }
-            ],
-            sources: []
-        },
-        authorName: 'Sarah Jenkins',
-        authorPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-        category: 'Creative'
-    },
-    {
         id: 'goal_david_1',
         userId: 'dummy_david',
         title: 'Run the Boston Marathon',
@@ -461,5 +393,73 @@ export const MOCK_ADDITIONAL_GOALS: SavedGoal[] = [
         },
         authorName: 'David Chen',
         authorPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop'
+    },
+    {
+        id: 'goal_sarah_1',
+        userId: 'dummy_sarah',
+        title: 'Open an Art Gallery in Paris',
+        description: 'To create a space where modern art meets nature in the heart of Montmartre.',
+        createdAt: new Date(),
+        visionImage: 'https://images.unsplash.com/photo-1577720580479-7d839d829c73?q=80&w=800&auto=format&fit=crop',
+        celestialType: 'planet',
+        isPublic: true,
+        plan: {
+            title: 'The Jenkins Gallery Project',
+            description: 'To create a space where modern art meets nature in the heart of Montmartre.',
+            timeline: [
+                {
+                    date: '2026-03-01',
+                    milestone: 'Concept & Funding',
+                    description: 'Finalize business plan and secure initial investment.',
+                    steps: [
+                        { text: 'Draft business proposal', date: '2026-02-15' },
+                        { text: 'Meet with investors', date: '2026-02-28' },
+                        { text: 'Register business entity in France', date: '2026-03-01' }
+                    ],
+                    isCompleted: true,
+                    resources: []
+                },
+                {
+                    date: '2026-05-15',
+                    milestone: 'Location Scouting',
+                    description: 'Find the perfect space in Montmartre.',
+                    steps: [
+                        { text: 'Contact commercial real estate agents', date: '2026-04-01' },
+                        { text: 'Tour properties in 18th Arrondissement', date: '2026-04-15' },
+                        { text: 'Sign lease', date: '2026-05-15' }
+                    ],
+                    isCompleted: false,
+                    resources: []
+                },
+                {
+                    date: '2026-08-01',
+                    milestone: 'Curation & Renovation',
+                    description: 'Prepare the space and select artists.',
+                    steps: [
+                        { text: 'Renovate gallery interior', date: '2026-06-01' },
+                        { text: 'Call for submissions', date: '2026-06-15' },
+                        { text: 'Select launch artists', date: '2026-07-20' }
+                    ],
+                    isCompleted: false,
+                    resources: []
+                },
+                {
+                    date: '2026-10-01',
+                    milestone: 'Grand Opening',
+                    description: 'Launch event for the gallery.',
+                    steps: [
+                        { text: 'Send invitations', date: '2026-09-01' },
+                        { text: 'Press release', date: '2026-09-15' },
+                        { text: 'Opening Night Gala', date: '2026-10-01' }
+                    ],
+                    isCompleted: false,
+                    resources: []
+                }
+            ],
+            sources: []
+        },
+        authorName: 'Sarah Jenkins',
+        authorPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
+        category: 'Creative'
     }
 ];
